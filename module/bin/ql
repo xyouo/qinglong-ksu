@@ -9,11 +9,37 @@ DATA_DIR="$STATE_DIR/data"
 LOG_DIR="$STATE_DIR/logs"
 PID_FILE="$STATE_DIR/qinglong.pid"
 LOCK_DIR="$STATE_DIR/.install.lock"
+OP_LOCK_DIR="$STATE_DIR/.operation.lock"
 CONFIG_FILE="$STATE_DIR/config.env"
 DEFAULT_CONFIG="$MODDIR/config.env"
 
 log() {
   echo "[青龙模块] $*"
+}
+
+operation_lock_acquire() {
+  mkdir -p "$STATE_DIR"
+  if mkdir "$OP_LOCK_DIR" 2>/dev/null; then
+    echo "$$" >"$OP_LOCK_DIR/pid"
+    return 0
+  fi
+  ol_pid="$(cat "$OP_LOCK_DIR/pid" 2>/dev/null)"
+  if [ -z "$ol_pid" ] || ! kill -0 "$ol_pid" 2>/dev/null; then
+    rm -rf "$OP_LOCK_DIR"
+    mkdir "$OP_LOCK_DIR" 2>/dev/null || return 1
+    echo "$$" >"$OP_LOCK_DIR/pid"
+    return 0
+  fi
+  return 1
+}
+
+run_locked() {
+  if ! operation_lock_acquire; then
+    log "已有启动、停止或重启任务正在执行，请稍候"
+    return 1
+  fi
+  trap 'rm -rf "$OP_LOCK_DIR"' EXIT INT TERM
+  "$@"
 }
 
 config_init() {
@@ -267,9 +293,9 @@ start_service() {
   fi
   ready=0
   tries=0
-  while [ "$tries" -lt 10 ]; do
+  while [ "$tries" -lt 30 ]; do
     if chroot "$ROOTFS" /usr/bin/curl -fsS --max-time 2 \
-      "http://127.0.0.1:$QL_PORT/" >/dev/null 2>&1; then
+      "http://127.0.0.1:$QL_PORT/api/health" >/dev/null 2>&1; then
       ready=1
       break
     fi
@@ -302,6 +328,11 @@ stop_service() {
   log "青龙已停止"
 }
 
+restart_service() {
+  stop_service
+  start_service
+}
+
 status_service() {
   if is_running; then
     log "运行中（PID $(cat "$PID_FILE")）"
@@ -330,6 +361,11 @@ module_version() {
 
 restart_async() {
   mkdir -p "$LOG_DIR"
+  ra_pid="$(cat "$OP_LOCK_DIR/pid" 2>/dev/null)"
+  if [ -n "$ra_pid" ] && kill -0 "$ra_pid" 2>/dev/null; then
+    log "已有重启任务正在执行，请稍候"
+    return 0
+  fi
   nohup "$MODDIR/bin/ql" restart </dev/null >>"$LOG_DIR/restart.log" 2>&1 &
   log "已提交后台重启任务"
 }
@@ -404,9 +440,9 @@ account_command() {
 }
 
 case "${1:-}" in
-  start) start_service ;;
-  stop) stop_service ;;
-  restart) stop_service; start_service ;;
+  start) run_locked start_service ;;
+  stop) run_locked stop_service ;;
+  restart) run_locked restart_service ;;
   restart-async) restart_async ;;
   status) status_service ;;
   install) install_runtime ;;

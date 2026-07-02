@@ -65,6 +65,10 @@ grep -q 'process_uses_rootfs' "$QL" ||
   fail "stop does not clean up child processes in the QingLong chroot"
 grep -q '健康检查失败' "$QL" ||
   fail "start does not verify that the configured port is reachable"
+grep -q 'operation_lock_acquire' "$QL" ||
+  fail "start/stop/restart operations are not serialized"
+grep -q '/api/health' "$QL" ||
+  fail "start does not use QingLong's official health endpoint"
 
 case "$(uname -s)" in
   MINGW*|MSYS*) ;;
