@@ -9,11 +9,11 @@ output="dist/qinglong-ksu-v${version}.zip"
 if [ -n "${VERSION_CODE:-}" ]; then
   version_code="$VERSION_CODE"
 else
-  old_ifs="$IFS"
-  IFS=.
-  set -- $version
-  IFS="$old_ifs"
-  version_code=$((${1:-0} * 10000 + ${2:-0} * 100 + ${3:-0}))
+  major="${version%%.*}"
+  remainder="${version#*.}"
+  minor="${remainder%%.*}"
+  patch="${remainder#*.}"
+  version_code=$((major * 10000 + minor * 100 + patch))
 fi
 
 [ -s "$runtime" ] || {
