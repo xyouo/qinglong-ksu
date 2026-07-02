@@ -1,7 +1,7 @@
 id=qinglong_ksu
-name=QingLong for KernelSU
+name=青龙面板 for KernelSU
 version=v0.1.0
 versionCode=1
 author=Codex
-description=Run QingLong in a lightweight chroot on KernelSU/APatch/Magisk (arm64).
+description=在 KernelSU/APatch/Magisk 上运行青龙面板，支持持久配置与可视化管理（arm64）
 updateJson=https://raw.githubusercontent.com/xyouo/qinglong-ksu/main/update.json

@@ -13,7 +13,7 @@ CONFIG_FILE="$STATE_DIR/config.env"
 DEFAULT_CONFIG="$MODDIR/config.env"
 
 log() {
-  echo "[qinglong-ksu] $*"
+  echo "[青龙模块] $*"
 }
 
 config_init() {
@@ -23,11 +23,21 @@ config_init() {
     chmod 0600 "$CONFIG_FILE"
     return
   fi
+  ci_tmp="$CONFIG_FILE.documented.$$"
+  : >"$ci_tmp"
   while IFS= read -r ci_line; do
-    ci_key="${ci_line%%=*}"
-    grep -q "^${ci_key}=" "$CONFIG_FILE" || echo "$ci_line" >>"$CONFIG_FILE"
+    case "$ci_line" in
+      ""|\#*) echo "$ci_line" >>"$ci_tmp" ;;
+      *)
+        ci_key="${ci_line%%=*}"
+        ci_default="${ci_line#*=}"
+        ci_value="$(sed -n "s/^${ci_key}=//p" "$CONFIG_FILE" | tail -n 1)"
+        printf '%s=%s\n' "$ci_key" "${ci_value:-$ci_default}" >>"$ci_tmp"
+        ;;
+    esac
   done <"$DEFAULT_CONFIG"
-  chmod 0600 "$CONFIG_FILE"
+  chmod 0600 "$ci_tmp"
+  mv "$ci_tmp" "$CONFIG_FILE"
 }
 
 config_get() {
@@ -73,16 +83,16 @@ config_set() {
   cs_key="$1"
   cs_value="$2"
   if ! validate_config "$cs_key" "$cs_value"; then
-    log "Invalid value for $cs_key"
+    log "$cs_key 的配置值无效"
     return 1
   fi
   config_init
-  cs_tmp="$CONFIG_FILE.tmp"
+  cs_tmp="$CONFIG_FILE.tmp.$$"
   grep -v "^${cs_key}=" "$CONFIG_FILE" >"$cs_tmp" || true
   printf '%s=%s\n' "$cs_key" "$cs_value" >>"$cs_tmp"
   chmod 0600 "$cs_tmp"
   mv "$cs_tmp" "$CONFIG_FILE"
-  log "$cs_key updated"
+  log "$cs_key 已更新"
 }
 
 config_list() {
@@ -125,7 +135,7 @@ install_runtime() {
   [ -x "$ROOTFS/usr/local/bin/qinglong-container-entrypoint" ] && return 0
 
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    log "Another runtime installation is in progress"
+    log "已有运行环境安装任务正在执行"
     return 1
   fi
   trap 'rm -rf "$LOCK_DIR"' EXIT INT TERM
@@ -134,31 +144,31 @@ install_runtime() {
   archive="$MODDIR/runtime.tar.gz"
   expected="$(cat "$MODDIR/runtime.sha256" 2>/dev/null)"
   if [ ! -s "$archive" ] || [ -z "$expected" ]; then
-    log "Embedded runtime is missing or incomplete; reinstall the module"
+    log "内置运行包缺失或不完整，请重新安装模块"
     return 1
   fi
   actual="$(sha256_file "$archive")"
   if [ "$expected" != "$actual" ]; then
-    log "Runtime checksum mismatch"
+    log "运行包校验失败，请重新安装模块"
     return 1
   fi
 
   rm -rf "$ROOTFS.new"
   mkdir -p "$ROOTFS.new"
   if ! extract_runtime "$archive" "$ROOTFS.new"; then
-    log "Runtime extraction failed; inspect $LOG_DIR/service.log"
+    log "运行环境解压失败，请查看 $LOG_DIR/service.log"
     rm -rf "$ROOTFS.new"
     return 1
   fi
   if [ ! -x "$ROOTFS.new/usr/local/bin/qinglong-container-entrypoint" ]; then
-    log "Runtime extraction was incomplete"
+    log "运行环境解压不完整"
     rm -rf "$ROOTFS.new"
     return 1
   fi
   rm -rf "$ROOTFS"
   mv "$ROOTFS.new" "$ROOTFS"
   rm -f "$archive"
-  log "Runtime installed"
+  log "运行环境安装完成"
 }
 
 is_mounted() {
@@ -195,20 +205,27 @@ unmount_runtime() {
   done
 }
 
+process_alive() {
+  pa_pid="$1"
+  kill -0 "$pa_pid" 2>/dev/null || return 1
+  pa_state="$(awk '{print $3}' "/proc/$pa_pid/stat" 2>/dev/null)"
+  [ "$pa_state" != "Z" ]
+}
+
 is_running() {
-  [ -s "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+  [ -s "$PID_FILE" ] && process_alive "$(cat "$PID_FILE")"
 }
 
 start_service() {
   if is_running; then
-    log "QingLong is already running (PID $(cat "$PID_FILE"))"
+    log "青龙已在运行（PID $(cat "$PID_FILE")）"
     return 0
   fi
   install_runtime || return 1
   mount_runtime || return 1
   load_config
 
-  log "Starting QingLong on port $QL_PORT..."
+  log "正在启动青龙，端口：$QL_PORT"
   (
     export QlPort="$QL_PORT" TZ
     chroot "$ROOTFS" /usr/local/bin/qinglong-container-entrypoint
@@ -217,20 +234,20 @@ start_service() {
   echo "$pid" >"$PID_FILE"
   sleep 3
   if ! kill -0 "$pid" 2>/dev/null; then
-    log "QingLong exited during startup; inspect $LOG_DIR/qinglong.log"
+    log "青龙启动时异常退出，请查看 $LOG_DIR/qinglong.log"
     rm -f "$PID_FILE"
     return 1
   fi
-  log "Started (PID $pid): http://127.0.0.1:$QL_PORT"
+  log "青龙启动成功（PID $pid）：http://127.0.0.1:$QL_PORT"
 }
 
 stop_service() {
   if is_running; then
     pid="$(cat "$PID_FILE")"
-    log "Stopping QingLong (PID $pid)..."
+    log "正在停止青龙（PID $pid）"
     kill "$pid" 2>/dev/null
     tries=0
-    while kill -0 "$pid" 2>/dev/null && [ "$tries" -lt 15 ]; do
+    while process_alive "$pid" && [ "$tries" -lt 15 ]; do
       sleep 1
       tries=$((tries + 1))
     done
@@ -238,18 +255,18 @@ stop_service() {
   fi
   rm -f "$PID_FILE"
   unmount_runtime
-  log "Stopped"
+  log "青龙已停止"
 }
 
 status_service() {
   if is_running; then
-    log "Running (PID $(cat "$PID_FILE"))"
+    log "运行中（PID $(cat "$PID_FILE")）"
     load_config
-    log "Panel: http://127.0.0.1:$QL_PORT"
+    log "面板地址：http://127.0.0.1:$QL_PORT"
   elif [ -d "$ROOTFS" ]; then
-    log "Installed but stopped"
+    log "运行环境已安装，青龙未启动"
   else
-    log "Runtime not installed yet"
+    log "运行环境尚未安装"
   fi
 }
 
@@ -267,15 +284,98 @@ module_version() {
   sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n 1
 }
 
+restart_async() {
+  mkdir -p "$LOG_DIR"
+  nohup "$MODDIR/bin/ql" restart </dev/null >>"$LOG_DIR/restart.log" 2>&1 &
+  log "已提交后台重启任务"
+}
+
+account_value_valid() {
+  av_kind="$1"
+  av_value="$2"
+  case "$av_value" in *'
+'*) return 1 ;; esac
+  # QingLong's official reset shell command interpolates this value into JSON.
+  # Reject the characters that could escape or expand inside that command.
+  if printf '%s' "$av_value" | grep -q '[\\"$`]'; then
+    return 1
+  fi
+  av_length="${#av_value}"
+  case "$av_kind" in
+    username) [ "$av_length" -ge 1 ] && [ "$av_length" -le 64 ] ;;
+    password)
+      [ "$av_length" -ge 6 ] && [ "$av_length" -le 128 ] &&
+        [ "$av_value" != "admin" ]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+account_command() {
+  ac_action="$1"
+  ac_value="${2:-}"
+  case "$ac_action" in
+    set-username)
+      account_value_valid username "$ac_value" || {
+        log "用户名长度必须为 1-64 个字符，且不能包含换行、引号、反斜杠、美元符号或反引号"
+        return 1
+      }
+      ;;
+    set-password)
+      account_value_valid password "$ac_value" || {
+        log "密码需为 6-128 位且不能为 admin；不支持引号、反斜杠、美元符号、反引号或换行"
+        return 1
+      }
+      ;;
+    reset-lock|disable-2fa) ;;
+    *)
+      echo "用法：ql account {set-username 用户名|set-password 密码|reset-lock|disable-2fa}"
+      return 2
+      ;;
+  esac
+  if ! is_running; then
+    log "请先启动青龙，再修改账号安全设置"
+    return 1
+  fi
+  load_config
+  ac_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  case "$ac_action" in
+    set-username)
+      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
+        /usr/local/bin/ql resetname "$ac_value"
+      ;;
+    set-password)
+      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
+        /usr/local/bin/ql resetpwd "$ac_value"
+      ;;
+    reset-lock)
+      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
+        /usr/local/bin/ql resetlet
+      ;;
+    disable-2fa)
+      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
+        /usr/local/bin/ql resettfa
+      ;;
+  esac
+}
+
 case "${1:-}" in
   start) start_service ;;
   stop) stop_service ;;
   restart) stop_service; start_service ;;
+  restart-async) restart_async ;;
   status) status_service ;;
   install) install_runtime ;;
   logs) tail -n "${2:-100}" "$LOG_DIR/qinglong.log" ;;
   doctor) doctor ;;
   version) module_version ;;
+  account)
+    ac_value="${4:-${3:-}}"
+    if [ "$ac_value" = "-" ]; then
+      ac_value="$(cat)"
+    fi
+    account_command "${2:-}" "$ac_value"
+    ;;
   config)
     case "${2:-}" in
       init) config_init ;;
@@ -293,7 +393,7 @@ case "${1:-}" in
         config_set "$3" "$value"
         ;;
       list) config_list ;;
-      *) echo "Usage: ql config {init|get KEY|set KEY VALUE|list}"; exit 2 ;;
+      *) echo "用法：ql config {init|get 键名|set 键名 值|list}"; exit 2 ;;
     esac
     ;;
   shell)
@@ -302,7 +402,7 @@ case "${1:-}" in
     exec chroot "$ROOTFS" /bin/bash
     ;;
   *)
-    echo "Usage: ql {install|start|stop|restart|status|logs [lines]|doctor|version|shell|config ...}"
+    echo "用法：ql {install|start|stop|restart|restart-async|status|logs [行数]|doctor|version|shell|config ...|account ...}"
     exit 2
     ;;
 esac

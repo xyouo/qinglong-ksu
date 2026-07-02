@@ -31,14 +31,29 @@
       <section class="card">
         <h2>持久配置</h2>
         <div class="grid">
-          <label>面板端口<input id="QL_PORT" inputmode="numeric" min="1" max="65535" /></label>
-          <label>时区<input id="TZ" placeholder="Asia/Shanghai" /></label>
-          <label>DNS<input id="DNS" placeholder="1.1.1.1,8.8.8.8" /></label>
-          <label>开机延迟（秒）<input id="BOOT_DELAY" inputmode="numeric" min="0" max="600" /></label>
+          <label>面板端口<span>1-65535，保存后自动重启青龙</span><input id="QL_PORT" inputmode="numeric" min="1" max="65535" /></label>
+          <label>时区<span>例如 Asia/Shanghai 或 UTC</span><input id="TZ" placeholder="Asia/Shanghai" /></label>
+          <label>DNS<span>多个地址使用英文逗号分隔</span><input id="DNS" placeholder="1.1.1.1,8.8.8.8" /></label>
+          <label>开机启动延迟<span>系统启动后等待 0-600 秒</span><input id="BOOT_DELAY" inputmode="numeric" min="0" max="600" /></label>
           <label class="toggle"><input id="AUTO_START" type="checkbox" />开机自动启动</label>
         </div>
         <button id="save">保存并重启</button>
         <p class="hint">配置保存在 /data/adb/qinglong/config.env，升级模块不会覆盖。</p>
+      </section>
+
+      <section class="card">
+        <h2>账号与登录安全</h2>
+        <p class="hint">使用青龙官方重置命令；不会读取或显示当前密码。青龙必须处于运行状态。</p>
+        <div class="grid account-grid">
+          <label>新用户名<span>留空表示不修改</span><input id="newUsername" autocomplete="off" maxlength="64" /></label>
+          <label>新密码<span>6-128 位；不支持引号、反斜杠、$ 和反引号</span><input id="newPassword" type="password" autocomplete="new-password" maxlength="128" /></label>
+        </div>
+        <div class="actions">
+          <button id="setUsername">修改用户名</button>
+          <button id="setPassword">修改密码</button>
+          <button id="resetLock" class="ghost">解除登录锁定</button>
+          <button id="disable2fa" class="danger">关闭两步验证</button>
+        </div>
       </section>
 
       <section class="card">

@@ -32,6 +32,7 @@ KernelSU/Magisk 的原生更新检测。Release 仍然只发布模块 ZIP。
 - 启动、停止或重启青龙；
 - 修改面板端口、时区和 DNS；
 - 控制开机自启和启动延迟；
+- 修改青龙登录用户名或密码、解除登录锁定、关闭两步验证；
 - 打开面板并查看最近日志。
 
 配置保存在 `/data/adb/qinglong/config.env`，升级模块不会覆盖现有值。
@@ -49,6 +50,10 @@ Magisk/APatch 没有兼容 WebUI 时，仍可使用下面的命令行。
 /data/adb/modules/qinglong_ksu/bin/ql shell
 /data/adb/modules/qinglong_ksu/bin/ql config list
 /data/adb/modules/qinglong_ksu/bin/ql config set QL_PORT 5800
+/data/adb/modules/qinglong_ksu/bin/ql account set-username 新用户名
+/data/adb/modules/qinglong_ksu/bin/ql account set-password 新密码
+/data/adb/modules/qinglong_ksu/bin/ql account reset-lock
+/data/adb/modules/qinglong_ksu/bin/ql account disable-2fa
 ```
 
 手动修改配置时，请编辑 `/data/adb/qinglong/config.env`，不要编辑模块目录中的
@@ -57,6 +62,9 @@ Magisk/APatch 没有兼容 WebUI 时，仍可使用下面的命令行。
 ```sh
 /data/adb/modules/qinglong_ksu/bin/ql restart
 ```
+
+账号安全命令调用的是青龙官方 `ql resetname/resetpwd/resetlet/resettfa` 接口，
+不会直接修改数据库。执行时青龙必须处于运行状态；密码不能设置为 `admin`。
 
 如果启动失败，可以收集以下输出：
 

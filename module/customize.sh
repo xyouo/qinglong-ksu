@@ -3,15 +3,15 @@
 # shellcheck disable=SC2034 # Read by the Magisk/KernelSU installer.
 SKIPUNZIP=0
 
-ui_print "- QingLong for KernelSU"
-ui_print "- KernelSU/APatch/Magisk compatible"
+ui_print "- 青龙面板 for KernelSU"
+ui_print "- 兼容 KernelSU / APatch / Magisk"
 
 ARCH="$(getprop ro.product.cpu.abi)"
 case "$ARCH" in
   arm64-v8a) ;;
   *)
-    ui_print "! Unsupported ABI: $ARCH"
-    ui_print "! This release currently supports arm64-v8a only"
+    ui_print "! 不支持的处理器架构：$ARCH"
+    ui_print "! 当前版本仅支持 arm64-v8a"
     abort
     ;;
 esac
@@ -23,6 +23,7 @@ set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/bin/ql" 0 0 0755
 
-ui_print "- Offline runtime is included in the module"
-ui_print "- Persistent data: /data/adb/qinglong/data"
-ui_print "- Default panel: http://127.0.0.1:5700"
+ui_print "- 模块已内置离线运行环境"
+ui_print "- 持久数据目录：/data/adb/qinglong/data"
+ui_print "- 持久配置文件：/data/adb/qinglong/config.env"
+ui_print "- 默认面板地址：http://127.0.0.1:5700"

@@ -27,6 +27,8 @@ assert_eq "$(run_ql config get AUTO_START)" "1"
 
 run_ql config set QL_PORT 5800 >/dev/null
 assert_eq "$(run_ql config get QL_PORT)" "5800"
+grep -q '^# 青龙面板监听端口' "$STATE/config.env" ||
+  fail "persistent config is missing Chinese parameter documentation"
 
 if run_ql config set QL_PORT 70000 >/dev/null 2>&1; then
   fail "accepted an out-of-range port"
@@ -39,6 +41,18 @@ fi
 
 if run_ql config get 'QL_PORT.*' >/dev/null 2>&1; then
   fail "accepted an unknown key"
+fi
+
+if run_ql account set-password admin >/dev/null 2>&1; then
+  fail "accepted the forbidden password"
+fi
+
+if run_ql account set-password short >/dev/null 2>&1; then
+  fail "accepted a password shorter than six characters"
+fi
+
+if run_ql account set-password 'bad$(reboot)' >/dev/null 2>&1; then
+  fail "accepted shell expansion characters in a password"
 fi
 
 case "$(uname -s)" in
