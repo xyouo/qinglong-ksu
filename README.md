@@ -2,7 +2,7 @@
 
 在 Android arm64 设备上通过轻量 chroot 运行青龙面板，优先支持
 KernelSU，同时兼容 APatch 和 Magisk。手机端不运行 Docker daemon；
-GitHub Actions 会预先提取青龙官方容器镜像，并发布为首次开机下载的运行包。
+GitHub Actions 会预先提取青龙官方容器镜像，并把离线运行环境封装进模块。
 
 ## 为什么不在手机上安装 Docker
 
@@ -14,12 +14,10 @@ overlayfs 或 iptables 功能。即使 dockerd 能启动，也很容易在升级
 
 1. 将本仓库推送到 GitHub。
 2. 在 `Actions` 页面运行 `Build release`，填写版本号。
-3. Action 会创建 GitHub Release，并上传：
-   - `qinglong-ksu-v*.zip`：KSU/Magisk 刷入包；
-   - `qinglong-rootfs-arm64.tar.gz`：首次启动下载的运行环境；
-   - `SHA256SUMS`：完整性校验；
-   - `update.json`：模块更新信息。
-4. 在 KernelSU 管理器中刷入 ZIP，然后重启。
+3. Action 会创建 GitHub Release，并且只上传
+   `qinglong-ksu-v*.zip` 这一个 KSU/Magisk 刷入包。
+4. 在 KernelSU 管理器中刷入 ZIP，然后重启。ZIP 已包含离线运行环境，
+   第一次启动无需再下载独立运行包。
 
 默认面板地址为 `http://127.0.0.1:5700`。局域网访问使用手机的局域网 IP；
 是否能被其他设备访问取决于青龙监听地址和 Android 防火墙。

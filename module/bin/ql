@@ -19,16 +19,6 @@ load_config() {
   . "$MODDIR/config.env"
 }
 
-download() {
-  url="$1"
-  output="$2"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fL --connect-timeout 20 --retry 3 -o "$output" "$url"
-  else
-    wget -T 20 -t 3 -O "$output" "$url"
-  fi
-}
-
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | awk '{print $1}'
@@ -46,24 +36,16 @@ install_runtime() {
   fi
   trap 'rm -rf "$LOCK_DIR"' EXIT INT TERM
 
-  load_config
-  case "$RUNTIME_URL" in
-    @*) log "Release URL was not configured by GitHub Actions"; return 1 ;;
-  esac
-
   mkdir -p "$STATE_DIR" "$DATA_DIR" "$LOG_DIR"
-  archive="$STATE_DIR/runtime.tar.gz.part"
-  sums="$STATE_DIR/SHA256SUMS.part"
-
-  log "Downloading QingLong runtime..."
-  download "$RUNTIME_URL" "$archive" || return 1
-  download "$RUNTIME_SHA256_URL" "$sums" || return 1
-
-  expected="$(awk '$2 ~ /qinglong-rootfs-arm64.tar.gz$/ {print $1; exit}' "$sums")"
+  archive="$MODDIR/runtime.tar.gz"
+  expected="$(cat "$MODDIR/runtime.sha256" 2>/dev/null)"
+  if [ ! -s "$archive" ] || [ -z "$expected" ]; then
+    log "Embedded runtime is missing or incomplete; reinstall the module"
+    return 1
+  fi
   actual="$(sha256_file "$archive")"
-  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+  if [ "$expected" != "$actual" ]; then
     log "Runtime checksum mismatch"
-    rm -f "$archive" "$sums"
     return 1
   fi
 
@@ -72,7 +54,7 @@ install_runtime() {
   gzip -dc "$archive" | tar -xpf - -C "$ROOTFS.new" || return 1
   rm -rf "$ROOTFS"
   mv "$ROOTFS.new" "$ROOTFS"
-  rm -f "$archive" "$sums"
+  rm -f "$archive"
   log "Runtime installed"
 }
 
@@ -179,4 +161,3 @@ case "${1:-}" in
     exit 2
     ;;
 esac
-

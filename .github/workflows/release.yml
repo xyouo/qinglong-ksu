@@ -48,9 +48,7 @@ jobs:
         run: bash scripts/package-module.sh
 
       - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum qinglong-rootfs-arm64.tar.gz qinglong-ksu-*.zip >SHA256SUMS
+        run: sha256sum dist/qinglong-ksu-*.zip
 
       - name: Create release
         if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
@@ -61,7 +59,4 @@ jobs:
           gh release create "v${VERSION}" \
             --title "QingLong KSU v${VERSION}" \
             --generate-notes \
-            dist/qinglong-rootfs-arm64.tar.gz \
-            dist/qinglong-ksu-v${VERSION}.zip \
-            dist/SHA256SUMS \
-            dist/update.json
+            dist/qinglong-ksu-v${VERSION}.zip

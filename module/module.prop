@@ -4,5 +4,3 @@ version=v0.1.0
 versionCode=1
 author=Codex
 description=Run QingLong in a lightweight chroot on KernelSU/APatch/Magisk (arm64).
-updateJson=@UPDATE_JSON@
-

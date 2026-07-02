@@ -23,6 +23,6 @@ set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/bin/ql" 0 0 0755
 
-ui_print "- Runtime will be downloaded on first boot"
+ui_print "- Offline runtime is included in the module"
 ui_print "- Persistent data: /data/adb/qinglong/data"
 ui_print "- Default panel: http://127.0.0.1:5700"
