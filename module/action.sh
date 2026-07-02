@@ -1,5 +1,6 @@
 #!/system/bin/sh
 
 MODDIR="${0%/*}"
-exec "$MODDIR/bin/ql" status
-
+"$MODDIR/bin/ql" status
+echo
+"$MODDIR/bin/ql" config list

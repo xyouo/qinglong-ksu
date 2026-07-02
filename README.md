@@ -22,6 +22,18 @@ overlayfs 或 iptables 功能。即使 dockerd 能启动，也很容易在升级
 默认面板地址为 `http://127.0.0.1:5700`。局域网访问使用手机的局域网 IP；
 是否能被其他设备访问取决于青龙监听地址和 Android 防火墙。
 
+## KernelSU WebUI
+
+在 KernelSU 管理器中打开模块的 WebUI，可以：
+
+- 启动、停止或重启青龙；
+- 修改面板端口、时区和 DNS；
+- 控制开机自启和启动延迟；
+- 打开面板并查看最近日志。
+
+配置保存在 `/data/adb/qinglong/config.env`，升级模块不会覆盖现有值。
+Magisk/APatch 没有兼容 WebUI 时，仍可使用下面的命令行。
+
 ## 管理命令
 
 模块管理器中的“操作”按钮会显示状态。也可以在 root shell 中执行：
@@ -31,6 +43,8 @@ overlayfs 或 iptables 功能。即使 dockerd 能启动，也很容易在升级
 /data/adb/modules/qinglong_ksu/bin/ql logs
 /data/adb/modules/qinglong_ksu/bin/ql restart
 /data/adb/modules/qinglong_ksu/bin/ql shell
+/data/adb/modules/qinglong_ksu/bin/ql config list
+/data/adb/modules/qinglong_ksu/bin/ql config set QL_PORT 5800
 ```
 
 运行环境位于 `/data/adb/qinglong/rootfs`，青龙数据持久化在

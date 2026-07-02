@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>青龙面板</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">QINGLONG · KERNELSU</p>
+          <h1>青龙面板</h1>
+          <p id="status" class="status">正在读取状态…</p>
+        </div>
+        <button id="refresh" class="ghost">刷新</button>
+      </header>
+
+      <section class="card">
+        <h2>运行控制</h2>
+        <div class="actions">
+          <button data-action="start">启动</button>
+          <button data-action="stop" class="danger">停止</button>
+          <button data-action="restart">重启</button>
+          <button id="openPanel">打开面板</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>持久配置</h2>
+        <div class="grid">
+          <label>面板端口<input id="QL_PORT" inputmode="numeric" min="1" max="65535" /></label>
+          <label>时区<input id="TZ" placeholder="Asia/Shanghai" /></label>
+          <label>DNS<input id="DNS" placeholder="1.1.1.1,8.8.8.8" /></label>
+          <label>开机延迟（秒）<input id="BOOT_DELAY" inputmode="numeric" min="0" max="600" /></label>
+          <label class="toggle"><input id="AUTO_START" type="checkbox" />开机自动启动</label>
+        </div>
+        <button id="save">保存并重启</button>
+        <p class="hint">配置保存在 /data/adb/qinglong/config.env，升级模块不会覆盖。</p>
+      </section>
+
+      <section class="card">
+        <div class="log-head"><h2>最近日志</h2><button id="logs" class="ghost">刷新日志</button></div>
+        <pre id="log">尚未读取</pre>
+      </section>
+      <div id="notice" role="status"></div>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

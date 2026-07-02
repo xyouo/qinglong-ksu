@@ -20,14 +20,16 @@ lines = [
     "#!/bin/sh",
     "set -e",
     # Preserve the module's user-facing override before applying image defaults.
-    'QL_PORT_OVERRIDE="${QL_PORT:-}"',
+    'QL_PORT_OVERRIDE="${QlPort:-}"',
+    'TZ_OVERRIDE="${TZ:-}"',
 ]
 for key, value in environment.items():
     lines.append(f"export {key}={shlex.quote(value)}")
 lines.extend(
     [
-        '[ -z "$QL_PORT_OVERRIDE" ] || export QL_PORT="$QL_PORT_OVERRIDE"',
-        "unset QL_PORT_OVERRIDE",
+        '[ -z "$QL_PORT_OVERRIDE" ] || export QlPort="$QL_PORT_OVERRIDE"',
+        '[ -z "$TZ_OVERRIDE" ] || export TZ="$TZ_OVERRIDE"',
+        "unset QL_PORT_OVERRIDE TZ_OVERRIDE",
     ]
 )
 if config.get("WorkingDir"):
