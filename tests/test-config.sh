@@ -61,6 +61,11 @@ if grep -q '/usr/local/bin/ql reset' "$QL"; then
   fail "account commands reference the missing /usr/local/bin/ql symlink"
 fi
 
+grep -q 'process_uses_rootfs' "$QL" ||
+  fail "stop does not clean up child processes in the QingLong chroot"
+grep -q '健康检查失败' "$QL" ||
+  fail "start does not verify that the configured port is reachable"
+
 case "$(uname -s)" in
   MINGW*|MSYS*) ;;
   *)

@@ -8,6 +8,7 @@ archive = Path(sys.argv[1])
 hardlinks: list[str] = []
 required = {
     "./usr/local/bin/qinglong-container-entrypoint": False,
+    "./usr/bin/curl": False,
     "./ql": False,
     "./ql/shell/update.sh": False,
 }
