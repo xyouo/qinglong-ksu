@@ -9,6 +9,7 @@ hardlinks: list[str] = []
 required = {
     "./usr/local/bin/qinglong-container-entrypoint": False,
     "./ql": False,
+    "./ql/shell/update.sh": False,
 }
 
 with tarfile.open(archive, mode="r:gz") as tar:

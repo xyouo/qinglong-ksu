@@ -342,19 +342,19 @@ account_command() {
   case "$ac_action" in
     set-username)
       chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /usr/local/bin/ql resetname "$ac_value"
+        /ql/shell/update.sh resetname "$ac_value"
       ;;
     set-password)
       chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /usr/local/bin/ql resetpwd "$ac_value"
+        /ql/shell/update.sh resetpwd "$ac_value"
       ;;
     reset-lock)
       chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /usr/local/bin/ql resetlet
+        /ql/shell/update.sh resetlet
       ;;
     disable-2fa)
       chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /usr/local/bin/ql resettfa
+        /ql/shell/update.sh resettfa
       ;;
   esac
 }

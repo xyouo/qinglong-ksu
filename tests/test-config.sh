@@ -55,6 +55,12 @@ if run_ql account set-password 'bad$(reboot)' >/dev/null 2>&1; then
   fail "accepted shell expansion characters in a password"
 fi
 
+grep -q '/ql/shell/update.sh resetlet' "$QL" ||
+  fail "account commands do not use QingLong's real update script"
+if grep -q '/usr/local/bin/ql reset' "$QL"; then
+  fail "account commands reference the missing /usr/local/bin/ql symlink"
+fi
+
 case "$(uname -s)" in
   MINGW*|MSYS*) ;;
   *)
