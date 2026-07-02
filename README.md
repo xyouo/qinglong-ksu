@@ -19,6 +19,9 @@ overlayfs 或 iptables 功能。即使 dockerd 能启动，也很容易在升级
 4. 在 KernelSU 管理器中刷入 ZIP，然后重启。ZIP 已包含离线运行环境，
    第一次启动无需再下载独立运行包。
 
+从 v0.2.1 开始，模块通过仓库主分支上的标准 `update.json` 接入
+KernelSU/Magisk 的原生更新检测。Release 仍然只发布模块 ZIP。
+
 默认面板地址为 `http://127.0.0.1:5700`。局域网访问使用手机的局域网 IP；
 是否能被其他设备访问取决于青龙监听地址和 Android 防火墙。
 
@@ -33,6 +36,7 @@ overlayfs 或 iptables 功能。即使 dockerd 能启动，也很容易在升级
 
 配置保存在 `/data/adb/qinglong/config.env`，升级模块不会覆盖现有值。
 Magisk/APatch 没有兼容 WebUI 时，仍可使用下面的命令行。
+端口、时区或 DNS 修改后需要重启青龙；WebUI 的“保存并重启”会自动完成。
 
 ## 管理命令
 
@@ -45,6 +49,21 @@ Magisk/APatch 没有兼容 WebUI 时，仍可使用下面的命令行。
 /data/adb/modules/qinglong_ksu/bin/ql shell
 /data/adb/modules/qinglong_ksu/bin/ql config list
 /data/adb/modules/qinglong_ksu/bin/ql config set QL_PORT 5800
+```
+
+手动修改配置时，请编辑 `/data/adb/qinglong/config.env`，不要编辑模块目录中的
+`config.env`；后者只用于首次安装时生成默认配置。手动修改后执行：
+
+```sh
+/data/adb/modules/qinglong_ksu/bin/ql restart
+```
+
+如果启动失败，可以收集以下输出：
+
+```sh
+/data/adb/modules/qinglong_ksu/bin/ql doctor
+/data/adb/modules/qinglong_ksu/bin/ql logs 200
+cat /data/adb/qinglong/logs/service.log
 ```
 
 运行环境位于 `/data/adb/qinglong/rootfs`，青龙数据持久化在

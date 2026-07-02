@@ -4,3 +4,5 @@ MODDIR="${0%/*}"
 "$MODDIR/bin/ql" status
 echo
 "$MODDIR/bin/ql" config list
+echo
+"$MODDIR/bin/ql" doctor

@@ -44,7 +44,6 @@ jobs:
       - name: Package module
         env:
           VERSION: ${{ steps.version.outputs.value }}
-          VERSION_CODE: ${{ github.run_number }}
         run: bash scripts/package-module.sh
 
       - name: Generate checksums

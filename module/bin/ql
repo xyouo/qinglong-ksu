@@ -107,6 +107,20 @@ sha256_file() {
   fi
 }
 
+extract_runtime() {
+  er_archive="$1"
+  er_target="$2"
+  if [ -x /data/adb/ksu/bin/busybox ]; then
+    /data/adb/ksu/bin/busybox gzip -dc "$er_archive" |
+      /data/adb/ksu/bin/busybox tar -xpf - -C "$er_target"
+  elif [ -x /data/adb/magisk/busybox ]; then
+    /data/adb/magisk/busybox gzip -dc "$er_archive" |
+      /data/adb/magisk/busybox tar -xpf - -C "$er_target"
+  else
+    gzip -dc "$er_archive" | tar -xpf - -C "$er_target"
+  fi
+}
+
 install_runtime() {
   [ -x "$ROOTFS/usr/local/bin/qinglong-container-entrypoint" ] && return 0
 
@@ -131,7 +145,16 @@ install_runtime() {
 
   rm -rf "$ROOTFS.new"
   mkdir -p "$ROOTFS.new"
-  gzip -dc "$archive" | tar -xpf - -C "$ROOTFS.new" || return 1
+  if ! extract_runtime "$archive" "$ROOTFS.new"; then
+    log "Runtime extraction failed; inspect $LOG_DIR/service.log"
+    rm -rf "$ROOTFS.new"
+    return 1
+  fi
+  if [ ! -x "$ROOTFS.new/usr/local/bin/qinglong-container-entrypoint" ]; then
+    log "Runtime extraction was incomplete"
+    rm -rf "$ROOTFS.new"
+    return 1
+  fi
   rm -rf "$ROOTFS"
   mv "$ROOTFS.new" "$ROOTFS"
   rm -f "$archive"
@@ -230,6 +253,20 @@ status_service() {
   fi
 }
 
+doctor() {
+  config_init
+  echo "state_dir=$STATE_DIR"
+  echo "config_file=$CONFIG_FILE"
+  echo "config_readable=$([ -r "$CONFIG_FILE" ] && echo yes || echo no)"
+  echo "runtime_archive=$([ -s "$MODDIR/runtime.tar.gz" ] && echo present || echo absent)"
+  echo "rootfs=$([ -x "$ROOTFS/usr/local/bin/qinglong-container-entrypoint" ] && echo installed || echo missing)"
+  echo "running=$(is_running && echo yes || echo no)"
+}
+
+module_version() {
+  sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n 1
+}
+
 case "${1:-}" in
   start) start_service ;;
   stop) stop_service ;;
@@ -237,6 +274,8 @@ case "${1:-}" in
   status) status_service ;;
   install) install_runtime ;;
   logs) tail -n "${2:-100}" "$LOG_DIR/qinglong.log" ;;
+  doctor) doctor ;;
+  version) module_version ;;
   config)
     case "${2:-}" in
       init) config_init ;;
@@ -263,7 +302,7 @@ case "${1:-}" in
     exec chroot "$ROOTFS" /bin/bash
     ;;
   *)
-    echo "Usage: ql {install|start|stop|restart|status|logs [lines]|shell|config ...}"
+    echo "Usage: ql {install|start|stop|restart|status|logs [lines]|doctor|version|shell|config ...}"
     exit 2
     ;;
 esac

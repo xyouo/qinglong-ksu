@@ -1,4 +1,4 @@
-import { exec } from "kernelsu";
+import { exec } from "./kernelsu.js";
 
 const ql = "/data/adb/modules/qinglong_ksu/bin/ql";
 const keys = ["QL_PORT", "TZ", "DNS", "BOOT_DELAY", "AUTO_START"];
@@ -26,6 +26,7 @@ async function refresh() {
       else $(key).value = value;
     }
   } catch (error) {
+    $("status").textContent = `读取失败：${error.message}`;
     notify(error.message, true);
   }
 }
