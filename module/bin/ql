@@ -17,26 +17,24 @@ log() {
 }
 
 config_init() {
-  local line key
   mkdir -p "$STATE_DIR"
   if [ ! -f "$CONFIG_FILE" ]; then
     cp "$DEFAULT_CONFIG" "$CONFIG_FILE"
     chmod 0600 "$CONFIG_FILE"
     return
   fi
-  while IFS= read -r line; do
-    key="${line%%=*}"
-    grep -q "^${key}=" "$CONFIG_FILE" || echo "$line" >>"$CONFIG_FILE"
+  while IFS= read -r ci_line; do
+    ci_key="${ci_line%%=*}"
+    grep -q "^${ci_key}=" "$CONFIG_FILE" || echo "$ci_line" >>"$CONFIG_FILE"
   done <"$DEFAULT_CONFIG"
   chmod 0600 "$CONFIG_FILE"
 }
 
 config_get() {
-  local key
   config_init
-  key="$1"
-  is_config_key "$key" || return 1
-  sed -n "s/^${key}=//p" "$CONFIG_FILE" | tail -n 1
+  cg_key="$1"
+  is_config_key "$cg_key" || return 1
+  sed -n "s/^${cg_key}=//p" "$CONFIG_FILE" | tail -n 1
 }
 
 is_config_key() {
@@ -47,46 +45,44 @@ is_config_key() {
 }
 
 validate_config() {
-  local key value
-  key="$1"
-  value="$2"
-  case "$key" in
+  vc_key="$1"
+  vc_value="$2"
+  case "$vc_key" in
     QL_PORT)
-      case "$value" in *[!0-9]*|"") return 1 ;; esac
-      [ "$value" -ge 1 ] && [ "$value" -le 65535 ]
+      case "$vc_value" in *[!0-9]*|"") return 1 ;; esac
+      [ "$vc_value" -ge 1 ] && [ "$vc_value" -le 65535 ]
       ;;
     BOOT_DELAY)
-      case "$value" in *[!0-9]*|"") return 1 ;; esac
-      [ "$value" -ge 0 ] && [ "$value" -le 600 ]
+      case "$vc_value" in *[!0-9]*|"") return 1 ;; esac
+      [ "$vc_value" -ge 0 ] && [ "$vc_value" -le 600 ]
       ;;
     AUTO_START)
-      [ "$value" = "0" ] || [ "$value" = "1" ]
+      [ "$vc_value" = "0" ] || [ "$vc_value" = "1" ]
       ;;
     TZ)
-      case "$value" in *[!A-Za-z0-9_+./-]*|"") return 1 ;; esac
+      case "$vc_value" in *[!A-Za-z0-9_+./-]*|"") return 1 ;; esac
       ;;
     DNS)
-      case "$value" in *[!A-Fa-f0-9:.,]*|"") return 1 ;; esac
+      case "$vc_value" in *[!A-Fa-f0-9:.,]*|"") return 1 ;; esac
       ;;
     *) return 1 ;;
   esac
 }
 
 config_set() {
-  local key value tmp
-  key="$1"
-  value="$2"
-  if ! validate_config "$key" "$value"; then
-    log "Invalid value for $key"
+  cs_key="$1"
+  cs_value="$2"
+  if ! validate_config "$cs_key" "$cs_value"; then
+    log "Invalid value for $cs_key"
     return 1
   fi
   config_init
-  tmp="$CONFIG_FILE.tmp"
-  grep -v "^${key}=" "$CONFIG_FILE" >"$tmp" || true
-  printf '%s=%s\n' "$key" "$value" >>"$tmp"
-  chmod 0600 "$tmp"
-  mv "$tmp" "$CONFIG_FILE"
-  log "$key updated"
+  cs_tmp="$CONFIG_FILE.tmp"
+  grep -v "^${cs_key}=" "$CONFIG_FILE" >"$cs_tmp" || true
+  printf '%s=%s\n' "$cs_key" "$cs_value" >>"$cs_tmp"
+  chmod 0600 "$cs_tmp"
+  mv "$cs_tmp" "$CONFIG_FILE"
+  log "$cs_key updated"
 }
 
 config_list() {
