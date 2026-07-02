@@ -1,5 +1,6 @@
 #!/system/bin/sh
 
+# shellcheck disable=SC2034 # Read by the Magisk/KernelSU installer.
 SKIPUNZIP=0
 
 ui_print "- QingLong for KernelSU"
@@ -25,4 +26,3 @@ set_perm "$MODPATH/bin/ql" 0 0 0755
 ui_print "- Runtime will be downloaded on first boot"
 ui_print "- Persistent data: /data/adb/qinglong/data"
 ui_print "- Default panel: http://127.0.0.1:5700"
-
