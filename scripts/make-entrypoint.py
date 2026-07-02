@@ -16,11 +16,21 @@ for item in config.get("Env") or []:
     key, _, value = item.partition("=")
     environment[key] = value
 
-lines = ["#!/bin/sh", "set -e"]
+lines = [
+    "#!/bin/sh",
+    "set -e",
+    # Preserve the module's user-facing override before applying image defaults.
+    'QL_PORT_OVERRIDE="${QL_PORT:-}"',
+]
 for key, value in environment.items():
     lines.append(f"export {key}={shlex.quote(value)}")
+lines.extend(
+    [
+        '[ -z "$QL_PORT_OVERRIDE" ] || export QL_PORT="$QL_PORT_OVERRIDE"',
+        "unset QL_PORT_OVERRIDE",
+    ]
+)
 if config.get("WorkingDir"):
     lines.append(f"cd {shlex.quote(config['WorkingDir'])}")
 lines.append("exec " + " ".join(shlex.quote(item) for item in argv))
 Path(sys.argv[2]).write_text("\n".join(lines) + "\n", encoding="utf-8")
-

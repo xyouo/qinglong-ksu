@@ -13,6 +13,8 @@ cp -a module/. "$module_dir/"
 
 base="https://github.com/${repository}"
 sed -i \
+  -e "s|^version=.*|version=v${version}|g" \
+  -e "s|^versionCode=.*|versionCode=${VERSION_CODE:-1}|g" \
   -e "s|@UPDATE_JSON@|${base}/releases/latest/download/update.json|g" \
   -e "s|@RUNTIME_URL@|${base}/releases/latest/download/qinglong-rootfs-arm64.tar.gz|g" \
   -e "s|@RUNTIME_SHA256_URL@|${base}/releases/latest/download/SHA256SUMS|g" \
@@ -31,4 +33,3 @@ cat >dist/update.json <<EOF
   "changelog": "${base}/releases/tag/v${version}"
 }
 EOF
-
