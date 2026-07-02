@@ -1,0 +1,182 @@
+#!/system/bin/sh
+
+set -u
+
+MODDIR="$(cd "${0%/*}/.." && pwd)"
+STATE_DIR=/data/adb/qinglong
+ROOTFS="$STATE_DIR/rootfs"
+DATA_DIR="$STATE_DIR/data"
+LOG_DIR="$STATE_DIR/logs"
+PID_FILE="$STATE_DIR/qinglong.pid"
+LOCK_DIR="$STATE_DIR/.install.lock"
+
+log() {
+  echo "[qinglong-ksu] $*"
+}
+
+load_config() {
+  # shellcheck disable=SC1091
+  . "$MODDIR/config.env"
+}
+
+download() {
+  url="$1"
+  output="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL --connect-timeout 20 --retry 3 -o "$output" "$url"
+  else
+    wget -T 20 -t 3 -O "$output" "$url"
+  fi
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    toybox sha256sum "$1" | awk '{print $1}'
+  fi
+}
+
+install_runtime() {
+  [ -x "$ROOTFS/usr/local/bin/qinglong-container-entrypoint" ] && return 0
+
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    log "Another runtime installation is in progress"
+    return 1
+  fi
+  trap 'rm -rf "$LOCK_DIR"' EXIT INT TERM
+
+  load_config
+  case "$RUNTIME_URL" in
+    @*) log "Release URL was not configured by GitHub Actions"; return 1 ;;
+  esac
+
+  mkdir -p "$STATE_DIR" "$DATA_DIR" "$LOG_DIR"
+  archive="$STATE_DIR/runtime.tar.gz.part"
+  sums="$STATE_DIR/SHA256SUMS.part"
+
+  log "Downloading QingLong runtime..."
+  download "$RUNTIME_URL" "$archive" || return 1
+  download "$RUNTIME_SHA256_URL" "$sums" || return 1
+
+  expected="$(awk '$2 ~ /qinglong-rootfs-arm64.tar.gz$/ {print $1; exit}' "$sums")"
+  actual="$(sha256_file "$archive")"
+  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    log "Runtime checksum mismatch"
+    rm -f "$archive" "$sums"
+    return 1
+  fi
+
+  rm -rf "$ROOTFS.new"
+  mkdir -p "$ROOTFS.new"
+  gzip -dc "$archive" | tar -xpf - -C "$ROOTFS.new" || return 1
+  rm -rf "$ROOTFS"
+  mv "$ROOTFS.new" "$ROOTFS"
+  rm -f "$archive" "$sums"
+  log "Runtime installed"
+}
+
+is_mounted() {
+  grep -q " $1 " /proc/mounts 2>/dev/null
+}
+
+bind_mount() {
+  source="$1"
+  target="$2"
+  mkdir -p "$target"
+  is_mounted "$target" || mount -o bind "$source" "$target"
+}
+
+mount_runtime() {
+  mkdir -p "$DATA_DIR" "$ROOTFS/ql/data" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/dev"
+  bind_mount "$DATA_DIR" "$ROOTFS/ql/data"
+  bind_mount /proc "$ROOTFS/proc"
+  bind_mount /sys "$ROOTFS/sys"
+  bind_mount /dev "$ROOTFS/dev"
+  [ -e "$ROOTFS/dev/pts" ] && bind_mount /dev/pts "$ROOTFS/dev/pts"
+  cp -f /system/etc/resolv.conf "$ROOTFS/etc/resolv.conf" 2>/dev/null || \
+    printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' >"$ROOTFS/etc/resolv.conf"
+}
+
+unmount_runtime() {
+  for path in dev/pts dev sys proc ql/data; do
+    is_mounted "$ROOTFS/$path" && umount -l "$ROOTFS/$path" 2>/dev/null
+  done
+}
+
+is_running() {
+  [ -s "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+start_service() {
+  if is_running; then
+    log "QingLong is already running (PID $(cat "$PID_FILE"))"
+    return 0
+  fi
+  install_runtime || return 1
+  mount_runtime || return 1
+  load_config
+
+  log "Starting QingLong on port $QL_PORT..."
+  (
+    export QL_PORT
+    chroot "$ROOTFS" /usr/local/bin/qinglong-container-entrypoint
+  ) >>"$LOG_DIR/qinglong.log" 2>&1 &
+  pid=$!
+  echo "$pid" >"$PID_FILE"
+  sleep 3
+  if ! kill -0 "$pid" 2>/dev/null; then
+    log "QingLong exited during startup; inspect $LOG_DIR/qinglong.log"
+    rm -f "$PID_FILE"
+    return 1
+  fi
+  log "Started (PID $pid): http://127.0.0.1:$QL_PORT"
+}
+
+stop_service() {
+  if is_running; then
+    pid="$(cat "$PID_FILE")"
+    log "Stopping QingLong (PID $pid)..."
+    kill "$pid" 2>/dev/null
+    tries=0
+    while kill -0 "$pid" 2>/dev/null && [ "$tries" -lt 15 ]; do
+      sleep 1
+      tries=$((tries + 1))
+    done
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  rm -f "$PID_FILE"
+  unmount_runtime
+  log "Stopped"
+}
+
+status_service() {
+  if is_running; then
+    log "Running (PID $(cat "$PID_FILE"))"
+    load_config
+    log "Panel: http://127.0.0.1:$QL_PORT"
+  elif [ -d "$ROOTFS" ]; then
+    log "Installed but stopped"
+  else
+    log "Runtime not installed yet"
+  fi
+}
+
+case "${1:-}" in
+  start) start_service ;;
+  stop) stop_service ;;
+  restart) stop_service; start_service ;;
+  status) status_service ;;
+  install) install_runtime ;;
+  logs) tail -n "${2:-100}" "$LOG_DIR/qinglong.log" ;;
+  shell)
+    install_runtime
+    mount_runtime
+    exec chroot "$ROOTFS" /bin/bash
+    ;;
+  *)
+    echo "Usage: ql {install|start|stop|restart|status|logs [lines]|shell}"
+    exit 2
+    ;;
+esac
+

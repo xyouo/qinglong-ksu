@@ -1,0 +1,65 @@
+name: Build release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without v
+        required: true
+        default: 0.1.0
+      qinglong_image:
+        description: QingLong image tag
+        required: true
+        default: ghcr.io/whyour/qinglong:2.20.2-debian
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME#v}" >>"$GITHUB_OUTPUT"
+          else
+            echo "value=${{ inputs.version }}" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Build arm64 runtime
+        env:
+          QL_IMAGE: ${{ inputs.qinglong_image || 'ghcr.io/whyour/qinglong:2.20.2-debian' }}
+        run: bash scripts/build-runtime.sh
+
+      - name: Package module
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: bash scripts/package-module.sh
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum qinglong-rootfs-arm64.tar.gz qinglong-ksu-*.zip >SHA256SUMS
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          gh release create "v${VERSION}" \
+            --title "QingLong KSU v${VERSION}" \
+            --generate-notes \
+            dist/qinglong-rootfs-arm64.tar.gz \
+            dist/qinglong-ksu-v${VERSION}.zip \
+            dist/SHA256SUMS \
+            dist/update.json
+
