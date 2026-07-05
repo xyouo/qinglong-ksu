@@ -174,7 +174,12 @@ extract_runtime() {
 }
 
 install_runtime() {
-  [ -x "$ROOTFS/usr/local/bin/qinglong-container-entrypoint" ] && return 0
+  expected="$(cat "$MODDIR/runtime.sha256" 2>/dev/null)"
+  installed="$(cat "$STATE_DIR/runtime.sha256" 2>/dev/null)"
+  if [ -x "$ROOTFS/usr/local/bin/qinglong-container-entrypoint" ] &&
+    [ -n "$expected" ] && [ "$expected" = "$installed" ]; then
+    return 0
+  fi
 
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
     log "已有运行环境安装任务正在执行"
@@ -184,7 +189,6 @@ install_runtime() {
 
   mkdir -p "$STATE_DIR" "$DATA_DIR" "$LOG_DIR"
   archive="$MODDIR/runtime.tar.gz"
-  expected="$(cat "$MODDIR/runtime.sha256" 2>/dev/null)"
   if [ ! -s "$archive" ] || [ -z "$expected" ]; then
     log "内置运行包缺失或不完整，请重新安装模块"
     return 1
@@ -209,6 +213,7 @@ install_runtime() {
   fi
   rm -rf "$ROOTFS"
   mv "$ROOTFS.new" "$ROOTFS"
+  printf '%s\n' "$expected" >"$STATE_DIR/runtime.sha256"
   rm -f "$archive"
   log "运行环境安装完成"
 }
@@ -273,7 +278,7 @@ stop_chroot_processes() {
   if [ -x "$ROOTFS/usr/local/bin/pm2" ]; then
     chroot "$ROOTFS" /usr/bin/env \
       PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-      HOME=/home/qinglong PM2_HOME=/home/qinglong/.pm2 \
+      HOME=/root PM2_HOME=/root/.pm2 TMPDIR=/tmp TMP=/tmp TEMP=/tmp \
       /usr/local/bin/pm2 kill >/dev/null 2>&1 || true
   fi
 
@@ -302,10 +307,14 @@ start_service() {
   install_runtime || return 1
   mount_runtime || return 1
   load_config
+  mkdir -p "$ROOTFS/tmp"
+  chmod 1777 "$ROOTFS/tmp"
 
   log "正在启动青龙，端口：$QL_PORT"
   (
     export QlPort="$QL_PORT" BACK_PORT="$QL_PORT" TZ
+    export HOME=/root PM2_HOME=/root/.pm2
+    export TMPDIR=/tmp TMP=/tmp TEMP=/tmp
     chroot "$ROOTFS" /usr/local/bin/qinglong-container-entrypoint
   ) >>"$LOG_DIR/qinglong.log" 2>&1 &
   pid=$!
@@ -332,7 +341,7 @@ start_service() {
     pm2_port="$(
       chroot "$ROOTFS" /usr/bin/env \
         PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-        HOME=/home/qinglong PM2_HOME=/home/qinglong/.pm2 \
+        HOME=/root PM2_HOME=/root/.pm2 TMPDIR=/tmp TMP=/tmp TEMP=/tmp \
         /usr/local/bin/pm2 env 0 2>/dev/null |
         sed -n 's/^BACK_PORT: */PM2 实际 BACK_PORT=/p' |
         head -n 1

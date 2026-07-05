@@ -86,6 +86,10 @@ grep -q 'bind_device "/dev/$device"' "$QL" ||
 if grep -q 'umount -l' "$QL"; then
   fail "runtime must not lazily detach Android mount targets"
 fi
+grep -q 'TMPDIR=/tmp TMP=/tmp TEMP=/tmp' "$QL" ||
+  fail "runtime does not sanitize inherited KernelSU temporary paths"
+grep -q 'runtime.sha256' "$QL" ||
+  fail "module updates do not refresh a changed runtime"
 
 case "$(uname -s)" in
   MINGW*|MSYS*) ;;

@@ -13,7 +13,8 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y shellcheck
       - run: shellcheck module/*.sh module/bin/ql scripts/*.sh
       - run: bash tests/test-config.sh
-      - run: python3 -m py_compile scripts/make-entrypoint.py
+      - run: python3 -m py_compile scripts/*.py tests/*.py
+      - run: python3 tests/test-patch-entrypoint.py
       - run: python3 tests/test-release-metadata.py
       - run: node --check module/webroot/app.js
       - run: node --check module/webroot/kernelsu.js

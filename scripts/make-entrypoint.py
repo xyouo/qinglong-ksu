@@ -22,6 +22,12 @@ lines = [
     # Preserve the module's user-facing override before applying image defaults.
     'QL_PORT_OVERRIDE="${QlPort:-}"',
     'TZ_OVERRIDE="${TZ:-}"',
+    'BACK_PORT_OVERRIDE="${BACK_PORT:-}"',
+    'HOME_OVERRIDE="${HOME:-}"',
+    'PM2_HOME_OVERRIDE="${PM2_HOME:-}"',
+    'TMPDIR_OVERRIDE="${TMPDIR:-}"',
+    'TMP_OVERRIDE="${TMP:-}"',
+    'TEMP_OVERRIDE="${TEMP:-}"',
 ]
 for key, value in environment.items():
     lines.append(f"export {key}={shlex.quote(value)}")
@@ -29,7 +35,14 @@ lines.extend(
     [
         '[ -z "$QL_PORT_OVERRIDE" ] || export QlPort="$QL_PORT_OVERRIDE"',
         '[ -z "$TZ_OVERRIDE" ] || export TZ="$TZ_OVERRIDE"',
-        "unset QL_PORT_OVERRIDE TZ_OVERRIDE",
+        '[ -z "$BACK_PORT_OVERRIDE" ] || export BACK_PORT="$BACK_PORT_OVERRIDE"',
+        '[ -z "$HOME_OVERRIDE" ] || export HOME="$HOME_OVERRIDE"',
+        '[ -z "$PM2_HOME_OVERRIDE" ] || export PM2_HOME="$PM2_HOME_OVERRIDE"',
+        '[ -z "$TMPDIR_OVERRIDE" ] || export TMPDIR="$TMPDIR_OVERRIDE"',
+        '[ -z "$TMP_OVERRIDE" ] || export TMP="$TMP_OVERRIDE"',
+        '[ -z "$TEMP_OVERRIDE" ] || export TEMP="$TEMP_OVERRIDE"',
+        "unset QL_PORT_OVERRIDE TZ_OVERRIDE BACK_PORT_OVERRIDE HOME_OVERRIDE",
+        "unset PM2_HOME_OVERRIDE TMPDIR_OVERRIDE TMP_OVERRIDE TEMP_OVERRIDE",
     ]
 )
 if config.get("WorkingDir"):

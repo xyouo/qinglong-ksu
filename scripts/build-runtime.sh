@@ -24,6 +24,8 @@ tar -xpf build/rootfs.tar -C build/rootfs-normalized
 mkdir -p build/rootfs-normalized/usr/local/bin
 install -m 0755 build/qinglong-container-entrypoint \
   build/rootfs-normalized/usr/local/bin/qinglong-container-entrypoint
+python3 scripts/patch-qinglong-entrypoint.py \
+  build/rootfs-normalized/ql/docker/docker-entrypoint.sh
 tar --hard-dereference --numeric-owner -cpf - -C build/rootfs-normalized . |
   gzip -9 >"$OUTPUT"
 python3 scripts/verify-runtime.py "$OUTPUT"
