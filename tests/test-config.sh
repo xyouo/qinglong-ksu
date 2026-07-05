@@ -67,6 +67,11 @@ grep -q '健康检查失败' "$QL" ||
   fail "start does not verify that the configured port is reachable"
 grep -q 'operation_lock_acquire' "$QL" ||
   fail "start/stop/restart operations are not serialized"
+if grep -q 'stop) run_locked' "$QL"; then
+  fail "stop must be able to interrupt a locked start or restart"
+fi
+grep -q 'stop) cancel_operation_and_stop' "$QL" ||
+  fail "stop does not cancel an in-progress start or restart"
 grep -q '/api/health' "$QL" ||
   fail "start does not use QingLong's official health endpoint"
 grep -q 'PM2 实际 BACK_PORT' "$QL" ||

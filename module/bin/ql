@@ -35,11 +35,27 @@ operation_lock_acquire() {
 
 run_locked() {
   if ! operation_lock_acquire; then
-    log "已有启动、停止或重启任务正在执行，请稍候"
+    log "已有启动或重启任务正在执行，请稍候"
     return 1
   fi
   trap 'rm -rf "$OP_LOCK_DIR"' EXIT INT TERM
   "$@"
+}
+
+cancel_operation_and_stop() {
+  cos_pid="$(cat "$OP_LOCK_DIR/pid" 2>/dev/null)"
+  if [ -n "$cos_pid" ] && [ "$cos_pid" != "$$" ] && kill -0 "$cos_pid" 2>/dev/null; then
+    log "正在取消进行中的启动或重启任务（PID $cos_pid）"
+    kill "$cos_pid" 2>/dev/null
+    cos_tries=0
+    while kill -0 "$cos_pid" 2>/dev/null && [ "$cos_tries" -lt 5 ]; do
+      sleep 1
+      cos_tries=$((cos_tries + 1))
+    done
+    kill -9 "$cos_pid" 2>/dev/null || true
+  fi
+  rm -rf "$OP_LOCK_DIR"
+  stop_service
 }
 
 config_init() {
@@ -462,7 +478,7 @@ account_command() {
 
 case "${1:-}" in
   start) run_locked start_service ;;
-  stop) run_locked stop_service ;;
+  stop) cancel_operation_and_stop ;;
   restart) run_locked restart_service ;;
   restart-async) restart_async ;;
   status) status_service ;;
