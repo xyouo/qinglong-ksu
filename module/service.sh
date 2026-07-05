@@ -5,6 +5,7 @@ STATE_DIR=/data/adb/qinglong
 LOG_DIR="$STATE_DIR/logs"
 
 mkdir -p "$LOG_DIR"
+"$MODDIR/bin/ql" rotate-logs
 "$MODDIR/bin/ql" config init >>"$LOG_DIR/service.log" 2>&1
 
 AUTO_START="$("$MODDIR/bin/ql" config get AUTO_START)"

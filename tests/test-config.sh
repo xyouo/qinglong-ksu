@@ -90,6 +90,14 @@ grep -q 'TMPDIR=/tmp TMP=/tmp TEMP=/tmp' "$QL" ||
   fail "runtime does not sanitize inherited KernelSU temporary paths"
 grep -q 'runtime.sha256' "$QL" ||
   fail "module updates do not refresh a changed runtime"
+grep -q 'port_listening' "$QL" ||
+  fail "status and diagnostics do not verify the actual TCP listener"
+grep -q 'health_ok' "$QL" ||
+  fail "status and diagnostics do not expose QingLong health"
+grep -q 'LOG_MAX_BYTES' "$QL" ||
+  fail "module logs are not bounded"
+grep -q 'create_upgrade_snapshot' "$QL" ||
+  fail "runtime upgrades do not create a safety snapshot"
 
 case "$(uname -s)" in
   MINGW*|MSYS*) ;;

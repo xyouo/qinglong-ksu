@@ -12,6 +12,26 @@ LOCK_DIR="$STATE_DIR/.install.lock"
 OP_LOCK_DIR="$STATE_DIR/.operation.lock"
 CONFIG_FILE="$STATE_DIR/config.env"
 DEFAULT_CONFIG="$MODDIR/config.env"
+LOG_MAX_BYTES="${QL_LOG_MAX_BYTES:-2097152}"
+
+rotate_log() {
+  rl_file="$1"
+  [ -f "$rl_file" ] || return 0
+  rl_size="$(wc -c <"$rl_file" 2>/dev/null)"
+  case "$rl_size" in *[!0-9]*|"") return 0 ;; esac
+  [ "$rl_size" -lt "$LOG_MAX_BYTES" ] && return 0
+  rm -f "$rl_file.2"
+  [ -f "$rl_file.1" ] && mv "$rl_file.1" "$rl_file.2"
+  cp "$rl_file" "$rl_file.1"
+  : >"$rl_file"
+}
+
+rotate_logs() {
+  mkdir -p "$LOG_DIR"
+  rotate_log "$LOG_DIR/qinglong.log"
+  rotate_log "$LOG_DIR/restart.log"
+  rotate_log "$LOG_DIR/service.log"
+}
 
 log() {
   echo "[青龙模块] $*"
@@ -199,6 +219,10 @@ install_runtime() {
     return 1
   fi
 
+  if [ -d "$ROOTFS" ] && [ -n "$installed" ] && [ "$installed" != "$expected" ]; then
+    create_upgrade_snapshot || log "升级前数据快照创建失败，将保留原持久化数据并继续更新"
+  fi
+
   rm -rf "$ROOTFS.new"
   mkdir -p "$ROOTFS.new"
   if ! extract_runtime "$archive" "$ROOTFS.new"; then
@@ -268,6 +292,69 @@ process_alive() {
   [ "$pa_state" != "Z" ]
 }
 
+port_listening() {
+  pl_port="$1"
+  case "$pl_port" in *[!0-9]*|"") return 1 ;; esac
+  pl_hex="$(printf '%04X' "$pl_port" 2>/dev/null)" || return 1
+  awk -v wanted="$pl_hex" '
+    $4 == "0A" {
+      split($2, address, ":")
+      if (toupper(address[2]) == wanted) found = 1
+    }
+    END { exit(found ? 0 : 1) }
+  ' /proc/net/tcp /proc/net/tcp6 2>/dev/null
+}
+
+health_ok() {
+  ho_port="$1"
+  [ -x "$ROOTFS/usr/bin/curl" ] || return 1
+  chroot "$ROOTFS" /usr/bin/curl -fsS --max-time 2 \
+    "http://127.0.0.1:$ho_port/api/health" >/dev/null 2>&1
+}
+
+listener_details() {
+  ld_port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -lntp 2>/dev/null |
+      awk -v port=":$ld_port" 'index($4, port) { print; found = 1 } END { exit(found ? 0 : 1) }'
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -lntp 2>/dev/null |
+      awk -v port=":$ld_port" 'index($4, port) { print; found = 1 } END { exit(found ? 0 : 1) }'
+  else
+    return 1
+  fi
+}
+
+create_upgrade_snapshot() {
+  cus_backup_dir="$STATE_DIR/backups"
+  cus_stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null)"
+  [ -n "$cus_stamp" ] || cus_stamp="unknown-$$"
+  mkdir -p "$cus_backup_dir"
+  cus_list="$STATE_DIR/.snapshot-files.$$"
+  : >"$cus_list"
+  [ -f "$CONFIG_FILE" ] && printf '%s\n' "config.env" >>"$cus_list"
+  for cus_path in data/config data/db data/scripts; do
+    [ -e "$STATE_DIR/$cus_path" ] && printf '%s\n' "$cus_path" >>"$cus_list"
+  done
+  if [ ! -s "$cus_list" ]; then
+    rm -f "$cus_list"
+    return 0
+  fi
+  cus_archive="$cus_backup_dir/pre-runtime-$cus_stamp.tar.gz"
+  if tar -czf "$cus_archive" -C "$STATE_DIR" -T "$cus_list"; then
+    chmod 0600 "$cus_archive"
+    log "升级前数据快照已保存：$cus_archive"
+  else
+    rm -f "$cus_archive" "$cus_list"
+    return 1
+  fi
+  rm -f "$cus_list"
+  find "$cus_backup_dir" -type f -name 'pre-runtime-*.tar.gz' 2>/dev/null |
+    sort -r |
+    awk 'NR > 3' |
+    while IFS= read -r cus_old; do rm -f "$cus_old"; done
+}
+
 process_uses_rootfs() {
   pur_pid="$1"
   pur_root="$(readlink "/proc/$pur_pid/root" 2>/dev/null)"
@@ -309,6 +396,7 @@ start_service() {
   load_config
   mkdir -p "$ROOTFS/tmp"
   chmod 1777 "$ROOTFS/tmp"
+  rotate_logs
 
   log "正在启动青龙，端口：$QL_PORT"
   (
@@ -328,8 +416,7 @@ start_service() {
   ready=0
   tries=0
   while [ "$tries" -lt 30 ]; do
-    if chroot "$ROOTFS" /usr/bin/curl -fsS --max-time 2 \
-      "http://127.0.0.1:$QL_PORT/api/health" >/dev/null 2>&1; then
+    if port_listening "$QL_PORT" && health_ok "$QL_PORT"; then
       ready=1
       break
     fi
@@ -381,6 +468,16 @@ status_service() {
     log "运行中（PID $(cat "$PID_FILE")）"
     load_config
     log "面板地址：http://127.0.0.1:$QL_PORT"
+    if port_listening "$QL_PORT"; then
+      log "TCP 端口 $QL_PORT 正在监听"
+    else
+      log "警告：主进程存在，但 TCP 端口 $QL_PORT 未监听"
+    fi
+    if health_ok "$QL_PORT"; then
+      log "青龙健康检查正常"
+    else
+      log "警告：青龙健康检查失败"
+    fi
   elif [ -d "$ROOTFS" ]; then
     log "运行环境已安装，青龙未启动"
   else
@@ -390,6 +487,7 @@ status_service() {
 
 show_logs() {
   sl_lines="${1:-100}"
+  rotate_logs
   echo "===== 青龙运行日志 ====="
   tail -n "$sl_lines" "$LOG_DIR/qinglong.log" 2>/dev/null
   echo
@@ -402,12 +500,20 @@ show_logs() {
 
 doctor() {
   config_init
+  load_config
+  d_pid="$(cat "$PID_FILE" 2>/dev/null)"
   echo "state_dir=$STATE_DIR"
   echo "config_file=$CONFIG_FILE"
   echo "config_readable=$([ -r "$CONFIG_FILE" ] && echo yes || echo no)"
   echo "runtime_archive=$([ -s "$MODDIR/runtime.tar.gz" ] && echo present || echo absent)"
   echo "rootfs=$([ -x "$ROOTFS/usr/local/bin/qinglong-container-entrypoint" ] && echo installed || echo missing)"
   echo "running=$(is_running && echo yes || echo no)"
+  echo "pid=${d_pid:-none}"
+  echo "configured_port=$QL_PORT"
+  echo "port_listening=$(port_listening "$QL_PORT" && echo yes || echo no)"
+  echo "health=$(health_ok "$QL_PORT" && echo ok || echo failed)"
+  echo "listener:"
+  listener_details "$QL_PORT" || echo "(未发现监听进程)"
 }
 
 module_version() {
@@ -416,6 +522,7 @@ module_version() {
 
 restart_async() {
   mkdir -p "$LOG_DIR"
+  rotate_logs
   ra_pid="$(cat "$OP_LOCK_DIR/pid" 2>/dev/null)"
   if [ -n "$ra_pid" ] && kill -0 "$ra_pid" 2>/dev/null; then
     log "已有重启任务正在执行，请稍候"
@@ -502,6 +609,7 @@ case "${1:-}" in
   status) status_service ;;
   install) install_runtime ;;
   logs) show_logs "${2:-100}" ;;
+  rotate-logs) rotate_logs ;;
   doctor) doctor ;;
   version) module_version ;;
   account)
