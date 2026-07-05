@@ -1,0 +1,1 @@
+ghcr.io/whyour/qinglong:2.20.2-debian

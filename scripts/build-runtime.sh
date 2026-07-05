@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-IMAGE="${QL_IMAGE:-ghcr.io/whyour/qinglong:2.20.2-debian}"
+DEFAULT_IMAGE="$(cat qinglong-image.txt)"
+IMAGE="${QL_IMAGE:-$DEFAULT_IMAGE}"
 PLATFORM="${QL_PLATFORM:-linux/arm64}"
 OUTPUT="${1:-dist/qinglong-rootfs-arm64.tar.gz}"
 

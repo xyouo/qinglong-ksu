@@ -86,3 +86,15 @@ cat /data/adb/qinglong/logs/service.log
 
 青龙本体来自 [whyour/qinglong](https://github.com/whyour/qinglong)，并遵循其
 上游许可证。本仓库只发布启动、安装与构建逻辑。
+
+## 青龙本体更新
+
+模块不会直接在手机上覆盖升级青龙运行环境。仓库通过根目录的
+`qinglong-image.txt` 固定经过验证的青龙官方镜像版本；上游发布新版本后，
+维护者更新这一处并重新构建、测试和发布模块。用户随后通过模块管理器更新，
+或覆盖刷入新版 ZIP 即可。
+
+升级模块会更换 `/data/adb/qinglong/rootfs`，但不会覆盖
+`/data/adb/qinglong/data` 和 `config.env`。运行环境变更前还会自动保存关键
+配置、数据库和脚本快照。因此青龙版本不会在用户不知情时自行漂移，也不需要
+在手机上运行 Docker 更新镜像。

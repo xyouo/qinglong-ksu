@@ -98,6 +98,14 @@ grep -q 'LOG_MAX_BYTES' "$QL" ||
 grep -q 'create_upgrade_snapshot' "$QL" ||
   fail "runtime upgrades do not create a safety snapshot"
 
+ACTION="$ROOT/module/action.sh"
+grep -q 'ql" status' "$ACTION" ||
+  fail "module action does not show concise status"
+if grep -q 'ql" doctor' "$ACTION" || grep -q 'ql" config list' "$ACTION" ||
+  grep -q 'ql" logs [0-9]' "$ACTION"; then
+  fail "module action executes verbose diagnostics instead of only listing commands"
+fi
+
 case "$(uname -s)" in
   MINGW*|MSYS*) ;;
   *)

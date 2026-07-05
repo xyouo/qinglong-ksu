@@ -8,9 +8,9 @@ on:
         required: true
         default: 0.1.0
       qinglong_image:
-        description: QingLong image tag
-        required: true
-        default: ghcr.io/whyour/qinglong:2.20.2-debian
+        description: Optional QingLong image override; blank uses qinglong-image.txt
+        required: false
+        default: ""
   push:
     branches:
       - main
@@ -38,7 +38,7 @@ jobs:
 
       - name: Build arm64 runtime
         env:
-          QL_IMAGE: ${{ inputs.qinglong_image || 'ghcr.io/whyour/qinglong:2.20.2-debian' }}
+          QL_IMAGE: ${{ inputs.qinglong_image }}
         run: bash scripts/build-runtime.sh
 
       - name: Package module

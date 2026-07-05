@@ -3,10 +3,6 @@
 MODDIR="${0%/*}"
 "$MODDIR/bin/ql" status
 echo
-"$MODDIR/bin/ql" doctor
-echo
-echo "===== 当前配置 ====="
-"$MODDIR/bin/ql" config list
-echo
-echo "===== 最近日志 ====="
-"$MODDIR/bin/ql" logs 30
+echo "常用诊断命令："
+echo "  $MODDIR/bin/ql doctor"
+echo "  $MODDIR/bin/ql logs 200"
