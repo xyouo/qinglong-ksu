@@ -20,9 +20,14 @@ if reload_call not in source:
 source = source.replace(reload_call, "\n: # 跳过后台 PM2 daemon\n", 1)
 
 scheduler_marker = "# 自动检测调度模式"
-if scheduler_marker not in source:
-    raise SystemExit("QingLong entrypoint scheduler block was not found")
-source = source[: source.index(scheduler_marker)] + """# Android chroot 使用前台进程监管：
+legacy_tail_marker = "tail -f /dev/null"
+if scheduler_marker in source:
+    foreground_start = source.index(scheduler_marker)
+elif legacy_tail_marker in source:
+    foreground_start = source.index(legacy_tail_marker)
+else:
+    raise SystemExit("QingLong entrypoint foreground wait block was not found")
+source = source[:foreground_start] + """# Android chroot 使用前台进程监管：
 # 避免 PM2 daemon 被系统回收后留下半存活的 Node 进程。
 export QL_SCHEDULER=node
 exec pm2-runtime start /ql/ecosystem.config.js --update-env
