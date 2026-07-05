@@ -1,1 +1,1 @@
-ghcr.io/whyour/qinglong:2.20.2-debian
+ghcr.io/whyour/qinglong:2.21.0-debian
