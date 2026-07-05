@@ -31,6 +31,8 @@ for candidate in (fixture, legacy_fixture):
         result = entrypoint.read_text(encoding="utf-8")
 
     assert "exec pm2-runtime start /ql/ecosystem.config.js" in result
+    assert "mkdir -p /ql/data/log" in result
+    assert ">>/ql/data/log/pm2-runtime.log 2>&1" in result
     assert "--update-env" not in result
     assert "\nreload_pm2\n" not in result
     assert "pm2 l &>/dev/null" not in result

@@ -31,6 +31,7 @@ rotate_logs() {
   rotate_log "$LOG_DIR/qinglong.log"
   rotate_log "$LOG_DIR/restart.log"
   rotate_log "$LOG_DIR/service.log"
+  rotate_log "$DATA_DIR/log/pm2-runtime.log"
 }
 
 log() {
@@ -487,6 +488,13 @@ show_logs() {
   tail -n "$sl_lines" "$LOG_DIR/service.log" 2>/dev/null
 }
 
+show_runtime_logs() {
+  srl_lines="${1:-100}"
+  rotate_logs
+  echo "===== PM2 与青龙详细运行日志 ====="
+  tail -n "$srl_lines" "$DATA_DIR/log/pm2-runtime.log" 2>/dev/null
+}
+
 doctor() {
   config_init
   load_config
@@ -501,6 +509,7 @@ doctor() {
   echo "configured_port=$QL_PORT"
   echo "port_listening=$(port_listening "$QL_PORT" && echo yes || echo no)"
   echo "health=$(health_ok "$QL_PORT" && echo ok || echo failed)"
+  echo "runtime_log=$DATA_DIR/log/pm2-runtime.log"
   echo "listener:"
   listener_details "$QL_PORT" || echo "(未发现监听进程)"
 }
@@ -598,6 +607,7 @@ case "${1:-}" in
   status) status_service ;;
   install) install_runtime ;;
   logs) show_logs "${2:-100}" ;;
+  runtime-logs) show_runtime_logs "${2:-100}" ;;
   rotate-logs) rotate_logs ;;
   doctor) doctor ;;
   version) module_version ;;
@@ -634,7 +644,7 @@ case "${1:-}" in
     exec chroot "$ROOTFS" /bin/bash
     ;;
   *)
-    echo "用法：ql {install|start|stop|restart|restart-async|status|logs [行数]|doctor|version|shell|config ...|account ...}"
+    echo "用法：ql {install|start|stop|restart|restart-async|status|logs [行数]|runtime-logs [行数]|doctor|version|shell|config ...|account ...}"
     exit 2
     ;;
 esac

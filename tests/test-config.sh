@@ -95,6 +95,10 @@ grep -q 'health_ok' "$QL" ||
   fail "status and diagnostics do not expose QingLong health"
 grep -q 'LOG_MAX_BYTES' "$QL" ||
   fail "module logs are not bounded"
+grep -q 'DATA_DIR/log/pm2-runtime.log' "$QL" ||
+  fail "detailed pm2-runtime output is not rotated separately"
+grep -q 'runtime-logs)' "$QL" ||
+  fail "detailed runtime logs do not have an explicit CLI command"
 grep -q 'create_upgrade_snapshot' "$QL" ||
   fail "runtime upgrades do not create a safety snapshot"
 

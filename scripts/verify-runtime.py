@@ -39,6 +39,8 @@ with tarfile.open(archive, mode="r:gz") as tar:
 
 if "exec pm2-runtime start /ql/ecosystem.config.js" not in entrypoint_text:
     raise SystemExit("runtime does not use foreground pm2-runtime supervision")
+if ">>/ql/data/log/pm2-runtime.log 2>&1" not in entrypoint_text:
+    raise SystemExit("runtime does not separate detailed PM2 output")
 if "--update-env" in entrypoint_text:
     raise SystemExit("runtime passes unsupported --update-env to pm2-runtime")
 if "\nreload_pm2\n" in entrypoint_text:

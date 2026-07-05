@@ -46,6 +46,7 @@ Magisk/APatch 没有兼容 WebUI 时，仍可使用下面的命令行。
 ```sh
 /data/adb/modules/qinglong_ksu/bin/ql status
 /data/adb/modules/qinglong_ksu/bin/ql logs
+/data/adb/modules/qinglong_ksu/bin/ql runtime-logs
 /data/adb/modules/qinglong_ksu/bin/ql restart
 /data/adb/modules/qinglong_ksu/bin/ql shell
 /data/adb/modules/qinglong_ksu/bin/ql config list
