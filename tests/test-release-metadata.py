@@ -25,8 +25,9 @@ assert metadata["zipUrl"].endswith(f"qinglong-ksu-{metadata['version']}.zip")
 assert image.startswith("ghcr.io/whyour/qinglong:")
 assert "cat qinglong-image.txt" in build_script
 assert "2.20.2-debian" not in workflow
-assert "repos/whyour/qinglong/releases/latest" in updater
+assert "ghcr.io/v2/whyour/qinglong/tags/list" in updater
 assert "docker manifest inspect" in updater
 assert "scripts/prepare-upstream-release.py" in updater
+assert "scripts/resolve-latest-qinglong.py" in updater
 
 print("release metadata tests passed")

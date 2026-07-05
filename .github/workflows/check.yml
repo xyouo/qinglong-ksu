@@ -17,6 +17,7 @@ jobs:
       - run: python3 tests/test-patch-entrypoint.py
       - run: python3 tests/test-release-metadata.py
       - run: python3 tests/test-prepare-upstream-release.py
+      - run: python3 tests/test-resolve-latest-qinglong.py
       - run: node --check module/webroot/app.js
       - run: node --check module/webroot/kernelsu.js
       - run: node tests/test-webui.mjs

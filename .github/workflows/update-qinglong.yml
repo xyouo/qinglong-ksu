@@ -37,8 +37,16 @@ jobs:
           set -euo pipefail
           qinglong_version="$QINGLONG_VERSION"
           if [[ -z "$qinglong_version" ]]; then
+            token="$(
+              curl -fsSL \
+                'https://ghcr.io/token?scope=repository:whyour/qinglong:pull' |
+                python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])'
+            )"
             qinglong_version="$(
-              gh api repos/whyour/qinglong/releases/latest --jq .tag_name
+              curl -fsSL \
+                -H "Authorization: Bearer $token" \
+                'https://ghcr.io/v2/whyour/qinglong/tags/list?n=1000' |
+                python3 scripts/resolve-latest-qinglong.py
             )"
           fi
           image="$(
@@ -71,6 +79,7 @@ jobs:
           python3 tests/test-patch-entrypoint.py
           python3 tests/test-release-metadata.py
           python3 tests/test-prepare-upstream-release.py
+          python3 tests/test-resolve-latest-qinglong.py
           node --check module/webroot/app.js
           node --check module/webroot/kernelsu.js
           node tests/test-webui.mjs
