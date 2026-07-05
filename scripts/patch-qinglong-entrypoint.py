@@ -30,7 +30,7 @@ else:
 source = source[:foreground_start] + """# Android chroot 使用前台进程监管：
 # 避免 PM2 daemon 被系统回收后留下半存活的 Node 进程。
 export QL_SCHEDULER=node
-exec pm2-runtime start /ql/ecosystem.config.js --update-env
+exec pm2-runtime start /ql/ecosystem.config.js
 """
 
 path.write_text(source, encoding="utf-8")

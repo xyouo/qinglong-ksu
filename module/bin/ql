@@ -253,22 +253,11 @@ bind_mount() {
   is_mounted "$target" || mount -o bind "$source" "$target"
 }
 
-bind_device() {
-  bd_source="$1"
-  bd_target="$2"
-  mkdir -p "${bd_target%/*}"
-  [ -e "$bd_target" ] || : >"$bd_target"
-  is_mounted "$bd_target" || mount -o bind "$bd_source" "$bd_target"
-}
-
 mount_runtime() {
   mkdir -p "$DATA_DIR" "$ROOTFS/ql/data" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/dev"
   bind_mount "$DATA_DIR" "$ROOTFS/ql/data"
   bind_mount /proc "$ROOTFS/proc"
   bind_mount /sys "$ROOTFS/sys"
-  for device in null zero random urandom; do
-    bind_device "/dev/$device" "$ROOTFS/dev/$device"
-  done
   load_config
   : >"$ROOTFS/etc/resolv.conf"
   old_ifs="$IFS"
@@ -280,7 +269,7 @@ mount_runtime() {
 }
 
 unmount_runtime() {
-  for path in dev/urandom dev/random dev/zero dev/null sys proc ql/data; do
+  for path in sys proc ql/data; do
     is_mounted "$ROOTFS/$path" && umount "$ROOTFS/$path" 2>/dev/null
   done
 }

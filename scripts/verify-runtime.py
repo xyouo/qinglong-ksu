@@ -37,8 +37,10 @@ with tarfile.open(archive, mode="r:gz") as tar:
         raise SystemExit("runtime is missing the QingLong entrypoint")
     entrypoint_text = entrypoint.read().decode("utf-8")
 
-if "exec pm2-runtime start /ql/ecosystem.config.js --update-env" not in entrypoint_text:
+if "exec pm2-runtime start /ql/ecosystem.config.js" not in entrypoint_text:
     raise SystemExit("runtime does not use foreground pm2-runtime supervision")
+if "--update-env" in entrypoint_text:
+    raise SystemExit("runtime passes unsupported --update-env to pm2-runtime")
 if "\nreload_pm2\n" in entrypoint_text:
     raise SystemExit("runtime still starts the background PM2 daemon")
 

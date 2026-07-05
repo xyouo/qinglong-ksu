@@ -78,11 +78,10 @@ grep -q 'PM2 实际 BACK_PORT' "$QL" ||
   fail "start failures do not report PM2's actual port"
 grep -q '模块后台重启日志' "$QL" ||
   fail "the log view does not include background restart output"
-if grep -q 'bind_mount /dev ' "$QL" || grep -q 'dev/pts' "$QL"; then
-  fail "runtime must not mount Android's global /dev or /dev/pts"
+if grep -q 'bind_mount /dev ' "$QL" || grep -q 'dev/pts' "$QL" ||
+  grep -q 'bind_device "/dev/' "$QL"; then
+  fail "runtime must not mount Android device nodes into the chroot"
 fi
-grep -q 'bind_device "/dev/$device"' "$QL" ||
-  fail "runtime does not bind the minimal safe device set"
 if grep -q 'umount -l' "$QL"; then
   fail "runtime must not lazily detach Android mount targets"
 fi
