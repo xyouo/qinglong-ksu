@@ -69,6 +69,10 @@ grep -q 'operation_lock_acquire' "$QL" ||
   fail "start/stop/restart operations are not serialized"
 grep -q '/api/health' "$QL" ||
   fail "start does not use QingLong's official health endpoint"
+grep -q 'PM2 实际 BACK_PORT' "$QL" ||
+  fail "start failures do not report PM2's actual port"
+grep -q '模块后台重启日志' "$QL" ||
+  fail "the log view does not include background restart output"
 
 case "$(uname -s)" in
   MINGW*|MSYS*) ;;

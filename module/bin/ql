@@ -248,7 +248,7 @@ stop_chroot_processes() {
   if [ -x "$ROOTFS/usr/local/bin/pm2" ]; then
     chroot "$ROOTFS" /usr/bin/env \
       PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-      HOME=/root PM2_HOME=/root/.pm2 \
+      HOME=/home/qinglong PM2_HOME=/home/qinglong/.pm2 \
       /usr/local/bin/pm2 kill >/dev/null 2>&1 || true
   fi
 
@@ -280,7 +280,7 @@ start_service() {
 
   log "正在启动青龙，端口：$QL_PORT"
   (
-    export QlPort="$QL_PORT" TZ
+    export QlPort="$QL_PORT" BACK_PORT="$QL_PORT" TZ
     chroot "$ROOTFS" /usr/local/bin/qinglong-container-entrypoint
   ) >>"$LOG_DIR/qinglong.log" 2>&1 &
   pid=$!
@@ -304,6 +304,15 @@ start_service() {
   done
   if [ "$ready" != "1" ]; then
     log "青龙进程存在，但端口 $QL_PORT 健康检查失败"
+    pm2_port="$(
+      chroot "$ROOTFS" /usr/bin/env \
+        PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+        HOME=/home/qinglong PM2_HOME=/home/qinglong/.pm2 \
+        /usr/local/bin/pm2 env 0 2>/dev/null |
+        sed -n 's/^BACK_PORT: */PM2 实际 BACK_PORT=/p' |
+        head -n 1
+    )"
+    log "${pm2_port:-无法从 PM2 读取实际端口}"
     stop_service
     return 1
   fi
@@ -343,6 +352,18 @@ status_service() {
   else
     log "运行环境尚未安装"
   fi
+}
+
+show_logs() {
+  sl_lines="${1:-100}"
+  echo "===== 青龙运行日志 ====="
+  tail -n "$sl_lines" "$LOG_DIR/qinglong.log" 2>/dev/null
+  echo
+  echo "===== 模块后台重启日志 ====="
+  tail -n "$sl_lines" "$LOG_DIR/restart.log" 2>/dev/null
+  echo
+  echo "===== 模块开机启动日志 ====="
+  tail -n "$sl_lines" "$LOG_DIR/service.log" 2>/dev/null
 }
 
 doctor() {
@@ -446,7 +467,7 @@ case "${1:-}" in
   restart-async) restart_async ;;
   status) status_service ;;
   install) install_runtime ;;
-  logs) tail -n "${2:-100}" "$LOG_DIR/qinglong.log" ;;
+  logs) show_logs "${2:-100}" ;;
   doctor) doctor ;;
   version) module_version ;;
   account)
