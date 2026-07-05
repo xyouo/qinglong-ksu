@@ -6,6 +6,7 @@ from pathlib import Path
 metadata = json.loads(Path("update.json").read_text(encoding="utf-8"))
 image = Path("qinglong-image.txt").read_text(encoding="utf-8").strip()
 workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+updater = Path(".github/workflows/update-qinglong.yml").read_text(encoding="utf-8")
 build_script = Path("scripts/build-runtime.sh").read_text(encoding="utf-8")
 module = {}
 for line in Path("module/module.prop").read_text(encoding="utf-8").splitlines():
@@ -24,5 +25,8 @@ assert metadata["zipUrl"].endswith(f"qinglong-ksu-{metadata['version']}.zip")
 assert image.startswith("ghcr.io/whyour/qinglong:")
 assert "cat qinglong-image.txt" in build_script
 assert "2.20.2-debian" not in workflow
+assert "repos/whyour/qinglong/releases/latest" in updater
+assert "docker manifest inspect" in updater
+assert "scripts/prepare-upstream-release.py" in updater
 
 print("release metadata tests passed")

@@ -16,6 +16,7 @@ jobs:
       - run: python3 -m py_compile scripts/*.py tests/*.py
       - run: python3 tests/test-patch-entrypoint.py
       - run: python3 tests/test-release-metadata.py
+      - run: python3 tests/test-prepare-upstream-release.py
       - run: node --check module/webroot/app.js
       - run: node --check module/webroot/kernelsu.js
       - run: node tests/test-webui.mjs

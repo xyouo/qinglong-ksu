@@ -1,0 +1,116 @@
+name: Update QingLong and release
+
+on:
+  workflow_dispatch:
+    inputs:
+      module_version:
+        description: New module version in X.Y.Z format
+        required: true
+      qinglong_version:
+        description: Optional QingLong version; blank uses latest stable release
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: qinglong-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve latest stable QingLong version
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODULE_VERSION: ${{ inputs.module_version }}
+          QINGLONG_VERSION: ${{ inputs.qinglong_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          qinglong_version="$QINGLONG_VERSION"
+          if [[ -z "$qinglong_version" ]]; then
+            qinglong_version="$(
+              gh api repos/whyour/qinglong/releases/latest --jq .tag_name
+            )"
+          fi
+          image="$(
+            python3 scripts/prepare-upstream-release.py \
+              "$MODULE_VERSION" "$qinglong_version"
+          )"
+          docker manifest inspect "$image" >/dev/null
+          echo "module=${MODULE_VERSION#v}" >>"$GITHUB_OUTPUT"
+          echo "qinglong=${qinglong_version#v}" >>"$GITHUB_OUTPUT"
+          echo "image=$image" >>"$GITHUB_OUTPUT"
+          echo "将构建青龙 ${qinglong_version#v}：$image"
+
+      - name: Refuse duplicate release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.versions.outputs.module }}
+        run: |
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists" >&2
+            exit 1
+          fi
+
+      - name: Validate repository
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck module/*.sh module/bin/ql scripts/*.sh
+          bash tests/test-config.sh
+          python3 -m py_compile scripts/*.py tests/*.py
+          python3 tests/test-patch-entrypoint.py
+          python3 tests/test-release-metadata.py
+          python3 tests/test-prepare-upstream-release.py
+          node --check module/webroot/app.js
+          node --check module/webroot/kernelsu.js
+          node tests/test-webui.mjs
+
+      - name: Build latest arm64 runtime
+        env:
+          QL_IMAGE: ${{ steps.versions.outputs.image }}
+        run: bash scripts/build-runtime.sh
+
+      - name: Package module
+        env:
+          VERSION: ${{ steps.versions.outputs.module }}
+        run: bash scripts/package-module.sh
+
+      - name: Generate checksum
+        run: sha256sum dist/qinglong-ksu-*.zip
+
+      - name: Commit resolved versions
+        env:
+          MODULE_VERSION: ${{ steps.versions.outputs.module }}
+          QINGLONG_VERSION: ${{ steps.versions.outputs.qinglong }}
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add qinglong-image.txt update.json
+          if ! git diff --cached --quiet; then
+            git commit -m \
+              "chore: release v${MODULE_VERSION} with QingLong ${QINGLONG_VERSION}"
+            git push origin HEAD:main
+          fi
+
+      - name: Create module release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.versions.outputs.module }}
+          QINGLONG_VERSION: ${{ steps.versions.outputs.qinglong }}
+        run: |
+          gh release create "v${VERSION}" \
+            --target main \
+            --title "QingLong KSU v${VERSION}" \
+            --notes "内置青龙 ${QINGLONG_VERSION}；由手动上游更新工作流构建。" \
+            "dist/qinglong-ksu-v${VERSION}.zip"

@@ -98,3 +98,8 @@ cat /data/adb/qinglong/logs/service.log
 `/data/adb/qinglong/data` 和 `config.env`。运行环境变更前还会自动保存关键
 配置、数据库和脚本快照。因此青龙版本不会在用户不知情时自行漂移，也不需要
 在手机上运行 Docker 更新镜像。
+
+仓库维护者也可以在 GitHub Actions 中手动运行
+`Update QingLong and release`。只需填写新的模块版本号；青龙版本留空时会读取
+官方最新稳定 Release，确认对应的 arm64 Debian 镜像存在后构建模块、更新在线
+更新信息并创建 Release。若要测试指定版本，也可以显式填写青龙版本号。
