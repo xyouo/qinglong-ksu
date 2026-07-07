@@ -63,6 +63,8 @@ fi
 
 grep -q 'process_uses_rootfs' "$QL" ||
   fail "stop does not clean up child processes in the QingLong chroot"
+grep -q 'ln -s /proc/self/fd "$ROOTFS/dev/fd"' "$QL" ||
+  fail "runtime does not provide /dev/fd for shell process substitution"
 grep -q '健康检查失败' "$QL" ||
   fail "start does not verify that the configured port is reachable"
 grep -q 'operation_lock_acquire' "$QL" ||
@@ -76,8 +78,10 @@ grep -q '/api/health' "$QL" ||
   fail "start does not use QingLong's official health endpoint"
 grep -q 'PM2 实际 BACK_PORT' "$QL" ||
   fail "start failures do not report PM2's actual port"
-grep -q '模块后台重启日志' "$QL" ||
-  fail "the log view does not include background restart output"
+if grep -q '模块后台重启日志' "$QL" || grep -q '模块开机启动日志' "$QL" ||
+  grep -q '===== 青龙运行日志 =====' "$QL"; then
+  fail "the main log view must only show raw qinglong.log"
+fi
 if grep -q 'bind_mount /dev ' "$QL" || grep -q 'dev/pts' "$QL" ||
   grep -q 'bind_device "/dev/' "$QL"; then
   fail "runtime must not mount Android device nodes into the chroot"
@@ -89,6 +93,9 @@ grep -q 'TMPDIR=/tmp TMP=/tmp TEMP=/tmp' "$QL" ||
   fail "runtime does not sanitize inherited KernelSU temporary paths"
 grep -q 'runtime.sha256' "$QL" ||
   fail "module updates do not refresh a changed runtime"
+if grep -q 'create_upgrade_snapshot' "$QL" || grep -q 'pre-runtime-' "$QL"; then
+  fail "runtime upgrades must not create automatic data snapshots"
+fi
 grep -q 'port_listening' "$QL" ||
   fail "status and diagnostics do not verify the actual TCP listener"
 grep -q 'health_ok' "$QL" ||
@@ -99,15 +106,15 @@ grep -q 'DATA_DIR/log/pm2-runtime.log' "$QL" ||
   fail "detailed pm2-runtime output is not rotated separately"
 grep -q 'runtime-logs)' "$QL" ||
   fail "detailed runtime logs do not have an explicit CLI command"
-grep -q 'create_upgrade_snapshot' "$QL" ||
-  fail "runtime upgrades do not create a safety snapshot"
+grep -q 'QL_DIR=/ql QL_DATA_DIR=/ql/data' "$QL" ||
+  fail "account commands do not pass QingLong's required environment"
+grep -q 'bash /ql/shell/update.sh' "$QL" ||
+  fail "account commands should run QingLong's update script through bash"
+grep -q '失败(' "$QL" ||
+  fail "account commands should fail when QingLong reports an API failure"
 
-ACTION="$ROOT/module/action.sh"
-grep -q 'ql" status' "$ACTION" ||
-  fail "module action does not show concise status"
-if grep -q 'ql" doctor' "$ACTION" || grep -q 'ql" config list' "$ACTION" ||
-  grep -q 'ql" logs [0-9]' "$ACTION"; then
-  fail "module action executes verbose diagnostics instead of only listing commands"
+if [ -e "$ROOT/module/action.sh" ]; then
+  fail "KernelSU action button should not be exposed"
 fi
 
 case "$(uname -s)" in

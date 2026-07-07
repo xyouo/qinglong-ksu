@@ -26,7 +26,7 @@ def main() -> None:
     qinglong_version = normalize_version(args.qinglong_version, "QingLong version")
     image = f"ghcr.io/whyour/qinglong:{qinglong_version}-debian"
 
-    (args.root / "qinglong-image.txt").write_text(image + "\n", encoding="utf-8")
+    (args.root / "qinglong-image.txt").write_text(image + "\n", encoding="utf-8", newline="\n")
     major, minor, patch = map(int, module_version.split("."))
     metadata = {
         "version": f"v{module_version}",
@@ -43,6 +43,7 @@ def main() -> None:
     (args.root / "update.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     print(image)
 

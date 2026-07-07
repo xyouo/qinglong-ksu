@@ -24,6 +24,7 @@ fi
 rm -rf "$module_dir"
 mkdir -p "$module_dir" dist
 cp -a module/. "$module_dir/"
+cp README.md "$module_dir/README.md"
 cp "$runtime" "$module_dir/runtime.tar.gz"
 sha256sum "$runtime" | awk '{print $1}' >"$module_dir/runtime.sha256"
 

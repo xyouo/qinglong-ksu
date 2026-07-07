@@ -8,6 +8,7 @@ image = Path("qinglong-image.txt").read_text(encoding="utf-8").strip()
 workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
 updater = Path(".github/workflows/update-qinglong.yml").read_text(encoding="utf-8")
 build_script = Path("scripts/build-runtime.sh").read_text(encoding="utf-8")
+package_script = Path("scripts/package-module.sh").read_text(encoding="utf-8")
 module = {}
 for line in Path("module/module.prop").read_text(encoding="utf-8").splitlines():
     key, separator, value = line.partition("=")
@@ -29,5 +30,6 @@ assert "ghcr.io/v2/whyour/qinglong/tags/list" in updater
 assert "docker manifest inspect" in updater
 assert "scripts/prepare-upstream-release.py" in updater
 assert "scripts/resolve-latest-qinglong.py" in updater
+assert 'cp README.md "$module_dir/README.md"' in package_script
 
 print("release metadata tests passed")

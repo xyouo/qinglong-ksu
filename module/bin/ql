@@ -220,10 +220,6 @@ install_runtime() {
     return 1
   fi
 
-  if [ -d "$ROOTFS" ] && [ -n "$installed" ] && [ "$installed" != "$expected" ]; then
-    create_upgrade_snapshot || log "升级前数据快照创建失败，将保留原持久化数据并继续更新"
-  fi
-
   rm -rf "$ROOTFS.new"
   mkdir -p "$ROOTFS.new"
   if ! extract_runtime "$archive" "$ROOTFS.new"; then
@@ -259,6 +255,10 @@ mount_runtime() {
   bind_mount "$DATA_DIR" "$ROOTFS/ql/data"
   bind_mount /proc "$ROOTFS/proc"
   bind_mount /sys "$ROOTFS/sys"
+  [ -e "$ROOTFS/dev/fd" ] || ln -s /proc/self/fd "$ROOTFS/dev/fd"
+  [ -e "$ROOTFS/dev/stdin" ] || ln -s /proc/self/fd/0 "$ROOTFS/dev/stdin"
+  [ -e "$ROOTFS/dev/stdout" ] || ln -s /proc/self/fd/1 "$ROOTFS/dev/stdout"
+  [ -e "$ROOTFS/dev/stderr" ] || ln -s /proc/self/fd/2 "$ROOTFS/dev/stderr"
   load_config
   : >"$ROOTFS/etc/resolv.conf"
   old_ifs="$IFS"
@@ -313,36 +313,6 @@ listener_details() {
   else
     return 1
   fi
-}
-
-create_upgrade_snapshot() {
-  cus_backup_dir="$STATE_DIR/backups"
-  cus_stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null)"
-  [ -n "$cus_stamp" ] || cus_stamp="unknown-$$"
-  mkdir -p "$cus_backup_dir"
-  cus_list="$STATE_DIR/.snapshot-files.$$"
-  : >"$cus_list"
-  [ -f "$CONFIG_FILE" ] && printf '%s\n' "config.env" >>"$cus_list"
-  for cus_path in data/config data/db data/scripts; do
-    [ -e "$STATE_DIR/$cus_path" ] && printf '%s\n' "$cus_path" >>"$cus_list"
-  done
-  if [ ! -s "$cus_list" ]; then
-    rm -f "$cus_list"
-    return 0
-  fi
-  cus_archive="$cus_backup_dir/pre-runtime-$cus_stamp.tar.gz"
-  if tar -czf "$cus_archive" -C "$STATE_DIR" -T "$cus_list"; then
-    chmod 0600 "$cus_archive"
-    log "升级前数据快照已保存：$cus_archive"
-  else
-    rm -f "$cus_archive" "$cus_list"
-    return 1
-  fi
-  rm -f "$cus_list"
-  find "$cus_backup_dir" -type f -name 'pre-runtime-*.tar.gz' 2>/dev/null |
-    sort -r |
-    awk 'NR > 3' |
-    while IFS= read -r cus_old; do rm -f "$cus_old"; done
 }
 
 process_uses_rootfs() {
@@ -478,14 +448,7 @@ status_service() {
 show_logs() {
   sl_lines="${1:-100}"
   rotate_logs
-  echo "===== 青龙运行日志 ====="
   tail -n "$sl_lines" "$LOG_DIR/qinglong.log" 2>/dev/null
-  echo
-  echo "===== 模块后台重启日志 ====="
-  tail -n "$sl_lines" "$LOG_DIR/restart.log" 2>/dev/null
-  echo
-  echo "===== 模块开机启动日志 ====="
-  tail -n "$sl_lines" "$LOG_DIR/service.log" 2>/dev/null
 }
 
 show_runtime_logs() {
@@ -551,6 +514,27 @@ account_value_valid() {
   esac
 }
 
+run_account_update() {
+  rau_action="$1"
+  rau_value="${2:-}"
+  load_config
+  rau_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  rau_env="PATH=$rau_path QL_DIR=/ql QL_DATA_DIR=/ql/data QlPort=$QL_PORT BACK_PORT=$QL_PORT HOME=/root PM2_HOME=/root/.pm2 TMPDIR=/tmp TMP=/tmp TEMP=/tmp"
+  if [ -n "$rau_value" ]; then
+    # shellcheck disable=SC2086 # rau_env is a fixed list of KEY=VALUE pairs.
+    rau_output="$(chroot "$ROOTFS" /usr/bin/env $rau_env bash /ql/shell/update.sh "$rau_action" "$rau_value" 2>&1)"
+  else
+    # shellcheck disable=SC2086 # rau_env is a fixed list of KEY=VALUE pairs.
+    rau_output="$(chroot "$ROOTFS" /usr/bin/env $rau_env bash /ql/shell/update.sh "$rau_action" 2>&1)"
+  fi
+  rau_code=$?
+  printf '%s\n' "$rau_output"
+  [ "$rau_code" -eq 0 ] || return "$rau_code"
+  case "$rau_output" in
+    *"失败("*|*"命令输入错误"*|*"No such file"*|*"not found"*) return 1 ;;
+  esac
+}
+
 account_command() {
   ac_action="$1"
   ac_value="${2:-}"
@@ -577,24 +561,18 @@ account_command() {
     log "请先启动青龙，再修改账号安全设置"
     return 1
   fi
-  load_config
-  ac_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   case "$ac_action" in
     set-username)
-      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /ql/shell/update.sh resetname "$ac_value"
+      run_account_update resetname "$ac_value"
       ;;
     set-password)
-      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /ql/shell/update.sh resetpwd "$ac_value"
+      run_account_update resetpwd "$ac_value"
       ;;
     reset-lock)
-      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /ql/shell/update.sh resetlet
+      run_account_update resetlet
       ;;
     disable-2fa)
-      chroot "$ROOTFS" /usr/bin/env PATH="$ac_path" QlPort="$QL_PORT" \
-        /ql/shell/update.sh resettfa
+      run_account_update resettfa
       ;;
   esac
 }
