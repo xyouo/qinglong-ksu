@@ -50,6 +50,21 @@ su -c '/data/adb/modules/qinglong_ksu/bin/ql config set QL_PORT 5900'
 su -c '/data/adb/modules/qinglong_ksu/bin/ql restart'
 ```
 
+如果从 x86_64 VPS 或其他架构的 Docker 备份恢复了 `/ql/data`，`/ql/data/dep_cache`
+里可能带着旧架构的 Python/Node 原生依赖。典型报错包括
+`Cannot load native module 'Crypto.Util._cpuid_c'`、缺少
+`aarch64-linux-gnu.so`，或 Node 原生模块加载失败。模块启动时会尽量自动识别并隔离这类明显的旧架构缓存；如果已经启动过仍然报错，
+也可以手动隔离旧依赖缓存，再在青龙面板的“依赖管理”中重新安装脚本所需依赖：
+
+```sh
+su -c '/data/adb/modules/qinglong_ksu/bin/ql repair-deps python'
+# 如果 Node.js 原生依赖也来自旧 VPS，可改用：
+# su -c '/data/adb/modules/qinglong_ksu/bin/ql repair-deps all'
+```
+
+隔离后的目录会保留为 `dep_cache/python3.incompatible.<时间>` 或
+`dep_cache/nodejs.incompatible.<时间>`，确认脚本恢复正常后可自行删除。
+
 ## KernelSU WebUI
 
 在 KernelSU 管理器中打开模块 WebUI，可以使用：
@@ -168,6 +183,22 @@ overlayfs 或 iptables 功能。即使 dockerd 能启动，也很容易在升级
 `/data/adb/qinglong/data` 和 `/data/adb/qinglong/config.env`。
 模块不再自动创建升级前数据快照；如果你的青龙数据很重要，建议在升级前自行备份
 `/data/adb/qinglong/data`。
+
+## 如何应用云端修改
+
+本仓库里的代码改动不会自动出现在你手机里。要让手机上的模块使用新代码，需要先把改动推送到 GitHub，
+再通过 GitHub Actions 构建并发布新的模块 ZIP，最后在 KernelSU/APatch/Magisk 里刷入新版 ZIP。
+
+推荐流程：
+
+1. 在 GitHub 仓库确认改动已经合并到 `main` 分支。
+2. 打开仓库的 **Actions** 页面。
+3. 如果只想用当前青龙版本重新打包模块，运行 **Build release**，填写新的模块版本号，例如 `0.4.5`。
+4. 如果想顺便更新到最新稳定青龙，运行 **Update QingLong and release**，填写新的模块版本号；青龙版本留空即可自动选择最新稳定 Debian 镜像。
+5. 工作流完成后，到 **Releases** 下载 `qinglong-ksu-v*.zip`。
+6. 在手机的模块管理器里覆盖刷入这个 ZIP 并重启。
+
+如果暂时不想换新版 ZIP，只能在手机上执行文档里给出的临时修复命令；这类命令不会把云端代码更新到模块文件里。
 
 ## 构建与发布
 
