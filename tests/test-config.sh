@@ -113,6 +113,36 @@ grep -q 'bash /ql/shell/update.sh' "$QL" ||
 grep -q '失败(' "$QL" ||
   fail "account commands should fail when QingLong reports an API failure"
 
+mkdir -p "$STATE/data/dep_cache/python3" "$STATE/data/dep_cache/nodejs"
+touch "$STATE/data/dep_cache/python3/from-vps.so" "$STATE/data/dep_cache/nodejs/addon.node"
+repair_output="$(run_ql repair-deps python)"
+printf '%s' "$repair_output" | grep -q '已隔离 Python 依赖缓存' ||
+  fail "repair-deps python does not quarantine Python dependency cache"
+[ ! -d "$STATE/data/dep_cache/python3" ] ||
+  fail "repair-deps python left the incompatible Python dependency cache active"
+find "$STATE/data/dep_cache" -maxdepth 1 -type d -name 'python3.incompatible.*' | grep -q . ||
+  fail "repair-deps python did not keep a timestamped backup"
+[ -d "$STATE/data/dep_cache/nodejs" ] ||
+  fail "repair-deps python should not touch Node.js dependency cache"
+if run_ql repair-deps ruby >/dev/null 2>&1; then
+  fail "repair-deps accepted an unknown dependency type"
+fi
+
+mkdir -p "$STATE/data/dep_cache/python3" "$STATE/data/dep_cache/nodejs"
+touch "$STATE/data/dep_cache/python3/_cpuid_c.cpython-311-x86_64-linux-gnu.so"
+touch "$STATE/data/dep_cache/nodejs/sharp-linux-x64.node"
+auto_output="$(run_ql start || true)"
+printf '%s' "$auto_output" | grep -q '正在自动隔离' ||
+  fail "start does not automatically quarantine incompatible native dependency caches"
+[ ! -d "$STATE/data/dep_cache/python3" ] ||
+  fail "automatic repair left the incompatible Python dependency cache active"
+[ ! -d "$STATE/data/dep_cache/nodejs" ] ||
+  fail "automatic repair left the incompatible Node.js dependency cache active"
+find "$STATE/data/dep_cache" -maxdepth 1 -type d -name 'python3.incompatible.*' | grep -q . ||
+  fail "automatic repair did not keep a timestamped Python backup"
+find "$STATE/data/dep_cache" -maxdepth 1 -type d -name 'nodejs.incompatible.*' | grep -q . ||
+  fail "automatic repair did not keep a timestamped Node.js backup"
+
 if [ -e "$ROOT/module/action.sh" ]; then
   fail "KernelSU action button should not be exposed"
 fi
