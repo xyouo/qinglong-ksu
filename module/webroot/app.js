@@ -1,7 +1,7 @@
 import { exec } from "./kernelsu.js";
 
 const ql = "/data/adb/modules/qinglong_ksu/bin/ql";
-const keys = ["QL_PORT", "TZ", "DNS", "BOOT_DELAY", "AUTO_START"];
+const keys = ["QL_PORT", "TZ", "DNS", "BOOT_DELAY", "AUTO_START", "KEEP_AWAKE"];
 const $ = (id) => document.getElementById(id);
 
 function notify(message, error = false) {
@@ -36,7 +36,7 @@ async function refresh() {
     $("status").textContent = await run(`${ql} status`);
     for (const key of keys) {
       const value = await run(`${ql} config get ${key}`);
-      if (key === "AUTO_START") $(key).checked = value === "1";
+      if (key === "AUTO_START" || key === "KEEP_AWAKE") $(key).checked = value === "1";
       else $(key).value = value;
     }
   } catch (error) {
@@ -59,7 +59,7 @@ async function save() {
   await withBusy($("save"), "保存中…", async () => {
     try {
       for (const key of keys) {
-        const value = key === "AUTO_START" ? ($(key).checked ? "1" : "0") : $(key).value.trim();
+        const value = key === "AUTO_START" || key === "KEEP_AWAKE" ? ($(key).checked ? "1" : "0") : $(key).value.trim();
         await setConfig(key, value);
       }
       await run(`${ql} restart-async`);

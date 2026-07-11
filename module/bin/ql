@@ -13,6 +13,9 @@ OP_LOCK_DIR="$STATE_DIR/.operation.lock"
 CONFIG_FILE="$STATE_DIR/config.env"
 DEFAULT_CONFIG="$MODDIR/config.env"
 LOG_MAX_BYTES="${QL_LOG_MAX_BYTES:-2097152}"
+WAKE_LOCK_NAME="${QL_WAKE_LOCK_NAME:-qinglong_ksu}"
+WAKE_LOCK_FILE="/sys/power/wake_lock"
+WAKE_UNLOCK_FILE="/sys/power/wake_unlock"
 
 rotate_log() {
   rl_file="$1"
@@ -112,7 +115,7 @@ config_get() {
 
 is_config_key() {
   case "$1" in
-    QL_PORT|TZ|DNS|BOOT_DELAY|AUTO_START) return 0 ;;
+    QL_PORT|TZ|DNS|BOOT_DELAY|AUTO_START|KEEP_AWAKE) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -129,7 +132,7 @@ validate_config() {
       case "$vc_value" in *[!0-9]*|"") return 1 ;; esac
       [ "$vc_value" -ge 0 ] && [ "$vc_value" -le 600 ]
       ;;
-    AUTO_START)
+    AUTO_START|KEEP_AWAKE)
       [ "$vc_value" = "0" ] || [ "$vc_value" = "1" ]
       ;;
     TZ)
@@ -169,7 +172,30 @@ load_config() {
   DNS="$(config_get DNS)"
   BOOT_DELAY="$(config_get BOOT_DELAY)"
   AUTO_START="$(config_get AUTO_START)"
-  export QL_PORT TZ DNS BOOT_DELAY AUTO_START
+  KEEP_AWAKE="$(config_get KEEP_AWAKE)"
+  export QL_PORT TZ DNS BOOT_DELAY AUTO_START KEEP_AWAKE
+}
+
+wake_lock_supported() {
+  [ -e "$WAKE_LOCK_FILE" ] && [ -e "$WAKE_UNLOCK_FILE" ]
+}
+
+acquire_wake_lock() {
+  [ "${KEEP_AWAKE:-1}" = "1" ] || return 0
+  if ! wake_lock_supported; then
+    log "当前内核未提供 Android 唤醒锁接口，息屏后定时任务可能被系统休眠延后"
+    return 0
+  fi
+  if echo "$WAKE_LOCK_NAME" >"$WAKE_LOCK_FILE" 2>/dev/null; then
+    log "已持有唤醒锁：$WAKE_LOCK_NAME"
+  else
+    log "唤醒锁获取失败，息屏后定时任务可能被系统休眠延后"
+  fi
+}
+
+release_wake_lock() {
+  wake_lock_supported || return 0
+  echo "$WAKE_LOCK_NAME" >"$WAKE_UNLOCK_FILE" 2>/dev/null || true
 }
 
 sha256_file() {
@@ -347,13 +373,15 @@ is_running() {
 }
 
 start_service() {
+  load_config
+  acquire_wake_lock
   if is_running; then
     log "青龙已在运行（PID $(cat "$PID_FILE")）"
     return 0
   fi
-  install_runtime || return 1
-  mount_runtime || return 1
-  load_config
+  auto_repair_deps
+  install_runtime || { release_wake_lock; return 1; }
+  mount_runtime || { release_wake_lock; return 1; }
   mkdir -p "$ROOTFS/tmp"
   chmod 1777 "$ROOTFS/tmp"
   rotate_logs
@@ -371,6 +399,7 @@ start_service() {
   if ! kill -0 "$pid" 2>/dev/null; then
     log "青龙启动时异常退出，请查看 $LOG_DIR/qinglong.log"
     rm -f "$PID_FILE"
+    release_wake_lock
     return 1
   fi
   ready=0
@@ -415,6 +444,7 @@ stop_service() {
   fi
   rm -f "$PID_FILE"
   unmount_runtime
+  release_wake_lock
   log "青龙已停止"
 }
 
@@ -470,11 +500,81 @@ doctor() {
   echo "running=$(is_running && echo yes || echo no)"
   echo "pid=${d_pid:-none}"
   echo "configured_port=$QL_PORT"
+  echo "keep_awake=$KEEP_AWAKE"
+  echo "wake_lock_supported=$(wake_lock_supported && echo yes || echo no)"
   echo "port_listening=$(port_listening "$QL_PORT" && echo yes || echo no)"
   echo "health=$(health_ok "$QL_PORT" && echo ok || echo failed)"
   echo "runtime_log=$DATA_DIR/log/pm2-runtime.log"
   echo "listener:"
   listener_details "$QL_PORT" || echo "(未发现监听进程)"
+}
+
+
+repair_deps() {
+  rd_target="${1:-all}"
+  case "$rd_target" in
+    all|python|python3|node|nodejs) ;;
+    *)
+      echo "用法：ql repair-deps [all|python|node]"
+      return 2
+      ;;
+  esac
+  rd_stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo manual)"
+  rd_repaired=0
+  mkdir -p "$DATA_DIR/dep_cache"
+  case "$rd_target" in
+    all|python|python3)
+      if [ -d "$DATA_DIR/dep_cache/python3" ]; then
+        mv "$DATA_DIR/dep_cache/python3" "$DATA_DIR/dep_cache/python3.incompatible.$rd_stamp"
+        log "已隔离 Python 依赖缓存：dep_cache/python3.incompatible.$rd_stamp"
+        rd_repaired=1
+      fi
+      ;;
+  esac
+  case "$rd_target" in
+    all|node|nodejs)
+      if [ -d "$DATA_DIR/dep_cache/nodejs" ]; then
+        mv "$DATA_DIR/dep_cache/nodejs" "$DATA_DIR/dep_cache/nodejs.incompatible.$rd_stamp"
+        log "已隔离 Node.js 依赖缓存：dep_cache/nodejs.incompatible.$rd_stamp"
+        rd_repaired=1
+      fi
+      ;;
+  esac
+  if [ "$rd_repaired" = "1" ]; then
+    log "请在青龙面板重新安装脚本依赖后再运行脚本"
+  else
+    log "未发现需要隔离的依赖缓存"
+  fi
+}
+
+
+incompatible_dep_artifact() {
+  ida_dir="$1"
+  [ -d "$ida_dir" ] || return 1
+  find "$ida_dir" -type f \( \
+    -name '*x86_64*' -o \
+    -name '*amd64*' -o \
+    -name '*x64*' -o \
+    -name '*i386*' -o \
+    -name '*i686*' -o \
+    -name '*armv7*' -o \
+    -name '*arm-linux-gnueabihf*' \
+  \) 2>/dev/null | head -n 1 | grep -q .
+}
+
+auto_repair_deps() {
+  ard_repaired=0
+  if incompatible_dep_artifact "$DATA_DIR/dep_cache/python3"; then
+    log "检测到 Python 依赖缓存包含非 arm64 原生文件，正在自动隔离"
+    repair_deps python
+    ard_repaired=1
+  fi
+  if incompatible_dep_artifact "$DATA_DIR/dep_cache/nodejs"; then
+    log "检测到 Node.js 依赖缓存包含非 arm64 原生文件，正在自动隔离"
+    repair_deps node
+    ard_repaired=1
+  fi
+  [ "$ard_repaired" = "0" ] || log "旧依赖缓存已隔离；请在青龙面板依赖管理中重新安装缺失依赖"
 }
 
 module_version() {
@@ -589,6 +689,7 @@ case "${1:-}" in
   rotate-logs) rotate_logs ;;
   doctor) doctor ;;
   version) module_version ;;
+  repair-deps) repair_deps "${2:-all}" ;;
   account)
     ac_value="${4:-${3:-}}"
     if [ "$ac_value" = "-" ]; then
@@ -622,7 +723,7 @@ case "${1:-}" in
     exec chroot "$ROOTFS" /bin/bash
     ;;
   *)
-    echo "用法：ql {install|start|stop|restart|restart-async|status|logs [行数]|runtime-logs [行数]|doctor|version|shell|config ...|account ...}"
+    echo "用法：ql {install|start|stop|restart|restart-async|status|logs [行数]|runtime-logs [行数]|doctor|repair-deps [all|python|node]|version|shell|config ...|account ...}"
     exit 2
     ;;
 esac

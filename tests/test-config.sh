@@ -24,6 +24,7 @@ assert_eq() {
 run_ql config init
 assert_eq "$(run_ql config get QL_PORT)" "5700"
 assert_eq "$(run_ql config get AUTO_START)" "1"
+assert_eq "$(run_ql config get KEEP_AWAKE)" "1"
 
 run_ql config set QL_PORT 5800 >/dev/null
 assert_eq "$(run_ql config get QL_PORT)" "5800"
@@ -38,6 +39,14 @@ assert_eq "$(run_ql config get QL_PORT)" "5800"
 if run_ql config set TZ 'Asia/Shanghai;reboot' >/dev/null 2>&1; then
   fail "accepted shell metacharacters"
 fi
+
+run_ql config set KEEP_AWAKE 0 >/dev/null
+assert_eq "$(run_ql config get KEEP_AWAKE)" "0"
+if run_ql config set KEEP_AWAKE 2 >/dev/null 2>&1; then
+  fail "accepted an invalid keep-awake value"
+fi
+run_ql config set KEEP_AWAKE 1 >/dev/null
+
 
 if run_ql config get 'QL_PORT.*' >/dev/null 2>&1; then
   fail "accepted an unknown key"
@@ -98,6 +107,10 @@ if grep -q 'create_upgrade_snapshot' "$QL" || grep -q 'pre-runtime-' "$QL"; then
 fi
 grep -q 'port_listening' "$QL" ||
   fail "status and diagnostics do not verify the actual TCP listener"
+grep -q 'wake_lock_supported' "$QL" ||
+  fail "diagnostics do not report Android wake-lock support"
+grep -q 'acquire_wake_lock' "$QL" ||
+  fail "start does not acquire an Android wake lock"
 grep -q 'health_ok' "$QL" ||
   fail "status and diagnostics do not expose QingLong health"
 grep -q 'LOG_MAX_BYTES' "$QL" ||
@@ -112,6 +125,36 @@ grep -q 'bash /ql/shell/update.sh' "$QL" ||
   fail "account commands should run QingLong's update script through bash"
 grep -q '失败(' "$QL" ||
   fail "account commands should fail when QingLong reports an API failure"
+
+mkdir -p "$STATE/data/dep_cache/python3" "$STATE/data/dep_cache/nodejs"
+touch "$STATE/data/dep_cache/python3/from-vps.so" "$STATE/data/dep_cache/nodejs/addon.node"
+repair_output="$(run_ql repair-deps python)"
+printf '%s' "$repair_output" | grep -q '已隔离 Python 依赖缓存' ||
+  fail "repair-deps python does not quarantine Python dependency cache"
+[ ! -d "$STATE/data/dep_cache/python3" ] ||
+  fail "repair-deps python left the incompatible Python dependency cache active"
+find "$STATE/data/dep_cache" -maxdepth 1 -type d -name 'python3.incompatible.*' | grep -q . ||
+  fail "repair-deps python did not keep a timestamped backup"
+[ -d "$STATE/data/dep_cache/nodejs" ] ||
+  fail "repair-deps python should not touch Node.js dependency cache"
+if run_ql repair-deps ruby >/dev/null 2>&1; then
+  fail "repair-deps accepted an unknown dependency type"
+fi
+
+mkdir -p "$STATE/data/dep_cache/python3" "$STATE/data/dep_cache/nodejs"
+touch "$STATE/data/dep_cache/python3/_cpuid_c.cpython-311-x86_64-linux-gnu.so"
+touch "$STATE/data/dep_cache/nodejs/sharp-linux-x64.node"
+auto_output="$(run_ql start || true)"
+printf '%s' "$auto_output" | grep -q '正在自动隔离' ||
+  fail "start does not automatically quarantine incompatible native dependency caches"
+[ ! -d "$STATE/data/dep_cache/python3" ] ||
+  fail "automatic repair left the incompatible Python dependency cache active"
+[ ! -d "$STATE/data/dep_cache/nodejs" ] ||
+  fail "automatic repair left the incompatible Node.js dependency cache active"
+find "$STATE/data/dep_cache" -maxdepth 1 -type d -name 'python3.incompatible.*' | grep -q . ||
+  fail "automatic repair did not keep a timestamped Python backup"
+find "$STATE/data/dep_cache" -maxdepth 1 -type d -name 'nodejs.incompatible.*' | grep -q . ||
+  fail "automatic repair did not keep a timestamped Node.js backup"
 
 if [ -e "$ROOT/module/action.sh" ]; then
   fail "KernelSU action button should not be exposed"

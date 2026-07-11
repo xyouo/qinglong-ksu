@@ -36,6 +36,7 @@
           <label>DNS<span>多个地址使用英文逗号分隔</span><input id="DNS" placeholder="1.1.1.1,8.8.8.8" /></label>
           <label>开机启动延迟<span>系统启动后等待 0-600 秒</span><input id="BOOT_DELAY" inputmode="numeric" min="0" max="600" /></label>
           <label class="toggle"><input id="AUTO_START" type="checkbox" />开机自动启动</label>
+          <label class="toggle"><input id="KEEP_AWAKE" type="checkbox" />运行时防息屏休眠</label>
         </div>
         <button id="save">保存并重启</button>
         <p class="hint">配置保存在 /data/adb/qinglong/config.env，升级模块不会覆盖；恢复青龙数据通常不会改这里的端口。</p>
