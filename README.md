@@ -50,6 +50,21 @@ su -c '/data/adb/modules/qinglong_ksu/bin/ql config set QL_PORT 5900'
 su -c '/data/adb/modules/qinglong_ksu/bin/ql restart'
 ```
 
+如果从 x86_64 VPS 或其他架构的 Docker 备份恢复了 `/ql/data`，`/ql/data/dep_cache`
+里可能带着旧架构的 Python/Node 原生依赖。典型报错包括
+`Cannot load native module 'Crypto.Util._cpuid_c'`、缺少
+`aarch64-linux-gnu.so`，或 Node 原生模块加载失败。此时先隔离旧依赖缓存，
+再在青龙面板的“依赖管理”中重新安装脚本所需依赖：
+
+```sh
+su -c '/data/adb/modules/qinglong_ksu/bin/ql repair-deps python'
+# 如果 Node.js 原生依赖也来自旧 VPS，可改用：
+# su -c '/data/adb/modules/qinglong_ksu/bin/ql repair-deps all'
+```
+
+隔离后的目录会保留为 `dep_cache/python3.incompatible.<时间>` 或
+`dep_cache/nodejs.incompatible.<时间>`，确认脚本恢复正常后可自行删除。
+
 ## KernelSU WebUI
 
 在 KernelSU 管理器中打开模块 WebUI，可以使用：

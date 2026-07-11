@@ -477,6 +477,44 @@ doctor() {
   listener_details "$QL_PORT" || echo "(未发现监听进程)"
 }
 
+
+repair_deps() {
+  rd_target="${1:-all}"
+  case "$rd_target" in
+    all|python|python3|node|nodejs) ;;
+    *)
+      echo "用法：ql repair-deps [all|python|node]"
+      return 2
+      ;;
+  esac
+  rd_stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo manual)"
+  rd_repaired=0
+  mkdir -p "$DATA_DIR/dep_cache"
+  case "$rd_target" in
+    all|python|python3)
+      if [ -d "$DATA_DIR/dep_cache/python3" ]; then
+        mv "$DATA_DIR/dep_cache/python3" "$DATA_DIR/dep_cache/python3.incompatible.$rd_stamp"
+        log "已隔离 Python 依赖缓存：dep_cache/python3.incompatible.$rd_stamp"
+        rd_repaired=1
+      fi
+      ;;
+  esac
+  case "$rd_target" in
+    all|node|nodejs)
+      if [ -d "$DATA_DIR/dep_cache/nodejs" ]; then
+        mv "$DATA_DIR/dep_cache/nodejs" "$DATA_DIR/dep_cache/nodejs.incompatible.$rd_stamp"
+        log "已隔离 Node.js 依赖缓存：dep_cache/nodejs.incompatible.$rd_stamp"
+        rd_repaired=1
+      fi
+      ;;
+  esac
+  if [ "$rd_repaired" = "1" ]; then
+    log "请在青龙面板重新安装脚本依赖后再运行脚本"
+  else
+    log "未发现需要隔离的依赖缓存"
+  fi
+}
+
 module_version() {
   sed -n 's/^version=//p' "$MODDIR/module.prop" | head -n 1
 }
@@ -589,6 +627,7 @@ case "${1:-}" in
   rotate-logs) rotate_logs ;;
   doctor) doctor ;;
   version) module_version ;;
+  repair-deps) repair_deps "${2:-all}" ;;
   account)
     ac_value="${4:-${3:-}}"
     if [ "$ac_value" = "-" ]; then
@@ -622,7 +661,7 @@ case "${1:-}" in
     exec chroot "$ROOTFS" /bin/bash
     ;;
   *)
-    echo "用法：ql {install|start|stop|restart|restart-async|status|logs [行数]|runtime-logs [行数]|doctor|version|shell|config ...|account ...}"
+    echo "用法：ql {install|start|stop|restart|restart-async|status|logs [行数]|runtime-logs [行数]|doctor|repair-deps [all|python|node]|version|shell|config ...|account ...}"
     exit 2
     ;;
 esac
