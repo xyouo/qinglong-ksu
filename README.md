@@ -53,8 +53,8 @@ su -c '/data/adb/modules/qinglong_ksu/bin/ql restart'
 如果从 x86_64 VPS 或其他架构的 Docker 备份恢复了 `/ql/data`，`/ql/data/dep_cache`
 里可能带着旧架构的 Python/Node 原生依赖。典型报错包括
 `Cannot load native module 'Crypto.Util._cpuid_c'`、缺少
-`aarch64-linux-gnu.so`，或 Node 原生模块加载失败。此时先隔离旧依赖缓存，
-再在青龙面板的“依赖管理”中重新安装脚本所需依赖：
+`aarch64-linux-gnu.so`，或 Node 原生模块加载失败。模块启动时会尽量自动识别并隔离这类明显的旧架构缓存；如果已经启动过仍然报错，
+也可以手动隔离旧依赖缓存，再在青龙面板的“依赖管理”中重新安装脚本所需依赖：
 
 ```sh
 su -c '/data/adb/modules/qinglong_ksu/bin/ql repair-deps python'

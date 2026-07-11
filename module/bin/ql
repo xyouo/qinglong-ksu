@@ -351,6 +351,7 @@ start_service() {
     log "青龙已在运行（PID $(cat "$PID_FILE")）"
     return 0
   fi
+  auto_repair_deps
   install_runtime || return 1
   mount_runtime || return 1
   load_config
@@ -513,6 +514,36 @@ repair_deps() {
   else
     log "未发现需要隔离的依赖缓存"
   fi
+}
+
+
+incompatible_dep_artifact() {
+  ida_dir="$1"
+  [ -d "$ida_dir" ] || return 1
+  find "$ida_dir" -type f \( \
+    -name '*x86_64*' -o \
+    -name '*amd64*' -o \
+    -name '*x64*' -o \
+    -name '*i386*' -o \
+    -name '*i686*' -o \
+    -name '*armv7*' -o \
+    -name '*arm-linux-gnueabihf*' \
+  \) 2>/dev/null | head -n 1 | grep -q .
+}
+
+auto_repair_deps() {
+  ard_repaired=0
+  if incompatible_dep_artifact "$DATA_DIR/dep_cache/python3"; then
+    log "检测到 Python 依赖缓存包含非 arm64 原生文件，正在自动隔离"
+    repair_deps python
+    ard_repaired=1
+  fi
+  if incompatible_dep_artifact "$DATA_DIR/dep_cache/nodejs"; then
+    log "检测到 Node.js 依赖缓存包含非 arm64 原生文件，正在自动隔离"
+    repair_deps node
+    ard_repaired=1
+  fi
+  [ "$ard_repaired" = "0" ] || log "旧依赖缓存已隔离；请在青龙面板依赖管理中重新安装缺失依赖"
 }
 
 module_version() {
